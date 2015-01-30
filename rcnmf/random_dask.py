@@ -7,7 +7,7 @@
    http://opensource.org/licenses/BSD-3-Clause
 """
 
-from itertools import count, product
+from itertools import count, product, permutations
 import numpy as np
 from functools import partial
 from dask.array import Array
@@ -74,12 +74,11 @@ def fromfunction(func, size=None, blockshape=None, blockdims=None, name=None):
         blockdims = _blockdims_from_blockshape(size, blockshape)
 
     name = name or next(_names[funcname])
-
     keys = product([name], *[range(len(bd)) for bd in blockdims])
-    vals = product([func], *blockdims)
+    vals = product([func], product(*blockdims))
     dsk = dict(zip(keys, vals))
 
-    return Array(dsk, 'x', shape=size, blockshape=blockshape)
+    return Array(dsk, name, shape=size, blockshape=blockshape)
 
 
 _random_functions = [np.random.exponential, np.random.gumbel, np.random.laplace,
