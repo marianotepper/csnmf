@@ -81,6 +81,7 @@
 
 if __name__ == "__main__":
 
+    import numpy as np
     import matplotlib.pyplot as plt
     import time
     import h5py
@@ -93,8 +94,8 @@ if __name__ == "__main__":
     n = 1000
     q = 100
 
-    X = random_dask.standard_normal(size=(m, q), blockshape=(100, 100))
-    Y = random_dask.standard_normal(size=(q, m), blockshape=(100, 100))
+    X = random_dask.standard_normal(size=(m, q), blockshape=(200, 100))
+    Y = random_dask.standard_normal(size=(q, m), blockshape=(100, 200))
 
     filename = 'nmffile.hdf5'
     if os.path.isfile(filename):
@@ -103,15 +104,24 @@ if __name__ == "__main__":
     f = h5py.File(filename)
     f.close()
 
-
     into('nmffile.hdf5::/X', X)
     into('nmffile.hdf5::/Y', Y)
 
     f = h5py.File(filename)
-    print(f)
-    print(f['X'])
-    print(f['Y'])
+    # print(f)
+    # print(f['X'])
+    # print(f['Y'])
+    # print(f['Y'][:5, :5])
 
+    # print f.get('X')
+
+    print f['X'].shape
+
+    Y2 = np.array(f['X'][:5, :5])
+    print(Y2)
+
+    X3 = into(np.ndarray, X)
+    print X3
 
     # block_m = q#min(f['X'].shape[0], 1000)
     # block_n = q#min(f['X'].shape[1], 1000)
@@ -135,3 +145,5 @@ if __name__ == "__main__":
     # plt.plot(err)
     #
     # plt.show()
+
+    f.close()

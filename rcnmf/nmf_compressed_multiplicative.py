@@ -20,14 +20,14 @@ def compute(mat, q, n_iter=1e5, n_power_iter=4):
 
     l = max(20, q + 10)
 
-    omega_left = np.random.randn(n, l)
+    omega_left = np.random.standard_normal(size=(n, l))
     mat_h = mat.dot(omega_left)
     for j in range(n_power_iter):
-        mat_h = mat.dot(mat.T.dot( mat_h))
+        mat_h = mat.dot(mat.T.dot(mat_h))
     left_comp = np.linalg.qr(mat_h, 'reduced')[0]
     left_comp = left_comp.T
 
-    omega_right = np.random.randn(l, m)
+    omega_right = np.random.standard_normal(size=(l, m))
     mat_h = omega_right.dot(mat)
     for j in range(n_power_iter):
         mat_h = (mat_h.dot(mat.T)).dot(mat)

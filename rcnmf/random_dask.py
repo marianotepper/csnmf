@@ -7,7 +7,7 @@
    http://opensource.org/licenses/BSD-3-Clause
 """
 
-from itertools import count, product, permutations
+from itertools import count, product
 import numpy as np
 from functools import partial
 from dask.array import Array
