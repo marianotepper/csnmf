@@ -1,3 +1,12 @@
+"""
+   Copyright (c) 2015, Mariano Tepper, Duke University.
+   All rights reserved.
+
+   This file is part of RCNMF and is under the BSD 3-Clause License,
+   which can be found in the LICENSE file in the root directory, or at
+   http://opensource.org/licenses/BSD-3-Clause
+"""
+
 # import math
 # import numpy as np
 
@@ -75,34 +84,46 @@ if __name__ == "__main__":
     import matplotlib.pyplot as plt
     import time
     import h5py
-    from dask.obj import Array
+    from dask.array import Array
     from blaze import Data, into
+    import random_dask
+    import os
 
     m = 1000
     n = 1000
     q = 100
 
-    f = h5py.File('nmffile.hdf5')
-    A = f.create_dataset(name='X', shape=(m, q), dtype='f8', chunks=(100, 100), fillvalue=1.0)
-    A = f.create_dataset(name='Y', shape=(q, n), dtype='f8', chunks=(100, 100), fillvalue=1.0)
+    X = random_dask.standard_normal(size=(m, q), blockshape=(100, 100))
+    Y = random_dask.standard_normal(size=(q, m), blockshape=(100, 100))
+
+    filename = 'nmffile.hdf5'
+    if os.path.isfile(filename):
+        os.remove(filename)
+
+    f = h5py.File(filename)
     f.close()
 
 
-    # into('nmffile.hdf5::/X', np.fabs(np.random.rand(m, q)))
-    # into('nmffile.hdf5::/Y', np.fabs(np.random.rand(q, n)))
+    into('nmffile.hdf5::/X', X)
+    into('nmffile.hdf5::/Y', Y)
+
+    f = h5py.File(filename)
+    print(f)
+    print(f['X'])
+    print(f['Y'])
 
 
-    block_m = q#min(f['X'].shape[0], 1000)
-    block_n = q#min(f['X'].shape[1], 1000)
-    X_into = into(Array, 'nmffile.hdf5::/X', blockshape=(block_m, block_n))
-    X_data = Data(X_into)
-
-    block_m = q#min(f['Y'].shape[0], 1000)
-    block_n = q#min(f['Y'].shape[1], 1000)
-    Y_into = into(Array, 'nmffile.hdf5::/Y', blockshape=(block_m, block_n))
-    Y_data = Data(Y_into)
-
-    print X_data.shape, Y_data.shape
+    # block_m = q#min(f['X'].shape[0], 1000)
+    # block_n = q#min(f['X'].shape[1], 1000)
+    # X_into = into(Array, 'nmffile.hdf5::/X', blockshape=(block_m, block_n))
+    # X_data = Data(X_into)
+    #
+    # block_m = q#min(f['Y'].shape[0], 1000)
+    # block_n = q#min(f['Y'].shape[1], 1000)
+    # Y_into = into(Array, 'nmffile.hdf5::/Y', blockshape=(block_m, block_n))
+    # Y_data = Data(Y_into)
+    #
+    # print X_data.shape, Y_data.shape
     # into('nmffile.hdf5::/M', X_data.dot(Y_data))
 
     # start = time.clock()
