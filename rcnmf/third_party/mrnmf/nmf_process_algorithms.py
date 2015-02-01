@@ -11,14 +11,19 @@
    Duke University.
    All rights reserved.
 
-    I, Mariano Tepper made the following changes to this file:
+    Mariano Tepper made the following changes to this file:
     - modify names and line lengths to adhere more closely to PEP8
     - small edits, refactoring, and cleanups
-    - removed some code, that I was not planning to use
+    - removed some code
 """
 
 import numpy as np
 from scipy import optimize
+
+
+def col2norm(X):
+    """ Compute all column 2-norms of a matrix. """
+    return np.sum(np.abs(X)**2, axis=0)
 
 
 def spa(X, r):
@@ -32,20 +37,14 @@ def spa(X, r):
     """
     cols = []
     m, n = X.shape
-    assert(m == n)
     for _ in xrange(r):
-        col_norms = np.sum(np.abs(X) ** 2, axis=0)
+        col_norms = col2norm(X)
         col_ind = np.argmax(col_norms)
         cols.append(col_ind)
-        col = np.reshape(X[:, col_ind], (n, 1))
-        X = np.dot((np.eye(n) - np.dot(col, col.T) / col_norms[col_ind]), X)
+        col = np.atleast_2d(X[:, col_ind]) #col is a row vector
+        X = np.dot((np.eye(m) - np.dot(col.T, col) / col_norms[col_ind]), X)
 
     return cols
-
-
-def col2norm(X):
-    """ Compute all column 2-norms of a matrix. """
-    return np.norm(X, 'fro', axis=0)
 
 
 def xray(X, r):
@@ -145,17 +144,17 @@ def nmf(data, colnorms, alg, r):
 
     if alg == 'xray':
         cols = xray(data, r)
-    elif alg == 'SPA' or alg == 'GP':
+    else:
         colinv = np.linalg.pinv(np.diag(colnorms))
         A = np.dot(data, colinv)
+
         if alg == 'SPA':
-            _, S, Vt = np.linalg.svd(A)
-            A = np.dot(np.diag(S), Vt)
             cols = spa(A, r)
         elif alg == 'GP':
             cols = gp_cols(data, r)
-    else:
-        raise Exception('Unknown algorithm: %s' % str(alg))
+        else:
+            raise Exception('Unknown algorithm: %s' % str(alg))
 
+    print cols
     H, rel_res = nnls_frob(data, cols)
     return cols, H, rel_res
