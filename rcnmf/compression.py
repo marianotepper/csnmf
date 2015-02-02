@@ -40,7 +40,8 @@ def compress_in_disk(uri, q, n_power_iter=0, blockshape=None):
 
     np.random.seed(0)
 
-    omega_array = random.standard_normal(size=(n, l), blockshape=(blockshape[1], l))
+    omega_array = random.standard_normal(size=(n, l),
+                                         blockshape=(blockshape[1], l))
     omega = blaze.Data(omega_array)
 
     mat_h = blaze.Data(blaze.into(Array, data.dot(omega)))
