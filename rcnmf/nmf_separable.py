@@ -22,9 +22,11 @@ def compute_compressed(data, q, alg, n_power_iter=0):
     return mrnmf.nmf(data_comp, colnorms, alg, q)
 
 
-def compute(data, q, alg):
+def compute(data, q, alg, n_power_iter=0):
 
-    data_comp = np.linalg.qr(data)[1]
+    data_comp = compression.compress(data, data.shape[1], n_power_iter)
+    data_comp = np.linalg.qr(data_comp)[1]
+    # TODO will have to re-implement this out-of-core
     colnorms = np.sum(np.fabs(data), axis=0)
 
     return mrnmf.nmf(data_comp, colnorms, alg, q)
