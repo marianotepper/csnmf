@@ -23,7 +23,7 @@ from scipy import optimize
 
 def col2norm(X):
     """ Compute all column 2-norms of a matrix. """
-    return np.sum(np.abs(X)**2, axis=0)
+    return np.sum(X**2, axis=0)
 
 
 def spa(X, r):
