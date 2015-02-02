@@ -155,6 +155,5 @@ def nmf(data, colnorms, alg, r):
         else:
             raise Exception('Unknown algorithm: %s' % str(alg))
 
-    print cols
     H, rel_res = nnls_frob(data, cols)
     return cols, H, rel_res
