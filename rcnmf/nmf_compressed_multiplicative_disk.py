@@ -85,17 +85,16 @@ if __name__ == "__main__":
     import matplotlib.pyplot as plt
     import time
     import h5py
-    from dask.array import Array
-    from blaze import Data, into
-    import random_dask
+    from dask.array import Array, random
+    import blaze
     import os
 
     m = 1000
     n = 1000
     q = 100
 
-    X = random_dask.standard_normal(size=(m, q), blockshape=(200, 100))
-    Y = random_dask.standard_normal(size=(q, m), blockshape=(100, 200))
+    X = random.standard_normal(size=(m, q), blockshape=(200, 100))
+    Y = random.standard_normal(size=(q, m), blockshape=(100, 200))
 
     filename = 'nmffile.hdf5'
     if os.path.isfile(filename):
@@ -104,46 +103,30 @@ if __name__ == "__main__":
     f = h5py.File(filename)
     f.close()
 
-    into('nmffile.hdf5::/X', X)
-    into('nmffile.hdf5::/Y', Y)
+    blaze.into(filename + '::/X', X)
+    blaze.into(filename + '::/Y', Y)
 
-    f = h5py.File(filename)
-    # print(f)
-    # print(f['X'])
-    # print(f['Y'])
-    # print(f['Y'][:5, :5])
+    X = blaze.into(Array, filename + '::/X', blockshape=(200, 100))
+    Y = blaze.into(Array, filename + '::/Y', blockshape=(100, 200))
+    X_data = blaze.Data(X)
+    Y_data = blaze.Data(Y)
 
-    # print f.get('X')
+    # TODO: have to drop datasets form hdf5 file before rewritting them
+    X_data = blaze.abs(X_data)
+    blaze.into(filename + '::/X', X_data)
+    Y_data = blaze.abs(Y_data)
+    blaze.into(filename + '::/Y', Y_data)
 
-    print f['X'].shape
+    blaze.into(filename + '::/M', X_data.dot(Y_data))
 
-    Y2 = np.array(f['X'][:5, :5])
-    print(Y2)
+    start = time.clock()
+    u, v, err = compute(M, q, 1e3)
+    end = time.clock()
+    print(end-start)
 
-    X3 = into(np.ndarray, X)
-    print X3
+    plt.figure()
+    plt.plot(err)
 
-    # block_m = q#min(f['X'].shape[0], 1000)
-    # block_n = q#min(f['X'].shape[1], 1000)
-    # X_into = into(Array, 'nmffile.hdf5::/X', blockshape=(block_m, block_n))
-    # X_data = Data(X_into)
-    #
-    # block_m = q#min(f['Y'].shape[0], 1000)
-    # block_n = q#min(f['Y'].shape[1], 1000)
-    # Y_into = into(Array, 'nmffile.hdf5::/Y', blockshape=(block_m, block_n))
-    # Y_data = Data(Y_into)
-    #
-    # print X_data.shape, Y_data.shape
-    # into('nmffile.hdf5::/M', X_data.dot(Y_data))
-
-    # start = time.clock()
-    # u, v, err = compute(M, q, 1e3)
-    # end = time.clock()
-    # print(end-start)
-    #
-    # plt.figure()
-    # plt.plot(err)
-    #
-    # plt.show()
+    plt.show()
 
     f.close()
