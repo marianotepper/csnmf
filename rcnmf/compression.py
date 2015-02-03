@@ -27,7 +27,7 @@ def compress_in_memory(data, q, n_power_iter=0):
     comp = np.linalg.qr(mat_h, 'reduced')[0]
     comp = comp.T
 
-    return comp.dot(data)
+    return comp.dot(data), comp
 
 
 def compress_in_disk(uri, q, n_power_iter=0, blockshape=None):
@@ -54,21 +54,23 @@ def compress_in_disk(uri, q, n_power_iter=0, blockshape=None):
         mat_h = blaze.Data(blaze.into(Array, data.dot(temp)))
         temp_file.close()
 
-
-
     mat_h = blaze.into(np.ndarray, mat_h)
 
     comp = np.linalg.qr(mat_h, 'reduced')[0]
     comp = comp.T
 
-    return comp.dot(data)
+    return comp.dot(data), comp
 
 
 def compress(data, q, n_power_iter=0, blockshape=None):
 
     if isinstance(data, np.ndarray):
-        compress_in_memory(data, q, n_power_iter=n_power_iter)
+        comp_data, comp = compress_in_memory(data, q,
+                                             n_power_iter=n_power_iter)
     elif isinstance(data, basestring):
-        compress_in_disk(data, q, n_power_iter=n_power_iter, blockshape=blockshape)
+        comp_data, comp = compress_in_disk(data, q, n_power_iter=n_power_iter,
+                                           blockshape=blockshape)
     else:
         raise TypeError('Cannot compress data of type ' + type(data).__name__)
+
+    return comp_data, comp
