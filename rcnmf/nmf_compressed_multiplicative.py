@@ -6,9 +6,10 @@
    which can be found in the LICENSE file in the root directory, or at
    http://opensource.org/licenses/BSD-3-Clause
 """
-
+from __future__ import absolute_import
 import math
 import numpy as np
+import rcnmf.compression as randcomp
 
 
 def compute(mat, q, n_iter=1e5, n_power_iter=4):
@@ -18,25 +19,12 @@ def compute(mat, q, n_iter=1e5, n_power_iter=4):
     m = mat.shape[0]
     n = mat.shape[1]
 
-    l = max(20, q + 10)
-
-    omega_left = np.random.standard_normal(size=(n, l))
-    mat_h = mat.dot(omega_left)
-    for j in range(n_power_iter):
-        mat_h = mat.dot(mat.T.dot(mat_h))
-    left_comp = np.linalg.qr(mat_h, 'reduced')[0]
-    left_comp = left_comp.T
-
-    omega_right = np.random.standard_normal(size=(l, m))
-    mat_h = omega_right.dot(mat)
-    for j in range(n_power_iter):
-        mat_h = (mat_h.dot(mat.T)).dot(mat)
-    right_comp = np.linalg.qr(mat_h.T, 'reduced')[0]
+    mat_l, left_comp = randcomp.compress(mat, q, n_power_iter=n_power_iter)
+    mat_r, right_comp = randcomp.compress(mat.T, q, n_power_iter=n_power_iter)
+    mat_r = np.transpose(mat_r)
+    right_comp = np.transpose(right_comp)
 
     mat_lr = left_comp.dot(mat.dot(right_comp))
-
-    mat_l = left_comp.dot(mat)
-    mat_r = mat.dot(right_comp)
 
     u = np.fabs(np.random.randn(m, q))
     v = np.fabs(np.random.randn(q, n))
