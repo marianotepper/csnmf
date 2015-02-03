@@ -10,7 +10,7 @@
 import numpy as np
 from dask.array import Array, random
 import blaze
-import time
+import tempfile
 
 
 def compress_in_memory(data, q, n_power_iter=0):
@@ -47,8 +47,14 @@ def compress_in_disk(uri, q, n_power_iter=0, blockshape=None):
     mat_h = blaze.Data(blaze.into(Array, data.dot(omega)))
 
     for j in range(n_power_iter):
-        temp = blaze.Data(blaze.into(Array, data.T.dot(mat_h)))
+        temp_file = tempfile.NamedTemporaryFile(suffix='.hdf5')
+        blaze.into(temp_file.name + '::/temp', data.T.dot(mat_h))
+        temp = blaze.Data(blaze.into(Array, temp_file.name + '::/temp',
+                          blockshape=(blockshape[1], l)))
         mat_h = blaze.Data(blaze.into(Array, data.dot(temp)))
+        temp_file.close()
+
+
 
     mat_h = blaze.into(np.ndarray, mat_h)
 
@@ -61,35 +67,8 @@ def compress_in_disk(uri, q, n_power_iter=0, blockshape=None):
 def compress(data, q, n_power_iter=0, blockshape=None):
 
     if isinstance(data, np.ndarray):
-        compress_in_memory(data, q, n_power_iter=0)
+        compress_in_memory(data, q, n_power_iter=n_power_iter)
     elif isinstance(data, basestring):
-        compress_in_disk(data, q, n_power_iter=0, blockshape=blockshape)
+        compress_in_disk(data, q, n_power_iter=n_power_iter, blockshape=blockshape)
     else:
         raise TypeError('Cannot compress data of type ' + type(data).__name__)
-
-if __name__ == '__main__':
-
-    import h5py
-    import os
-
-    X_disk = random.standard_normal(size=(10000, 5000), blockshape=(1000, 1000))
-
-
-    filename = 'data.hdf5'
-    if os.path.isfile(filename):
-        os.remove(filename)
-    f = h5py.File(filename)
-    f.close()
-
-    blaze.into(filename + '::/X', X_disk)
-
-    data_array = blaze.into(Array, filename + '::/X', blockshape=(1000, 1000))
-    X = blaze.into(np.ndarray, blaze.Data(data_array))
-
-    t = time.clock()
-    compress(filename + '::/X', 5, blockshape=(1000, 1000))
-    print time.clock() - t
-    t = time.clock()
-    compress(X, 5)
-    print time.clock() - t
-    compress(1, 5)
