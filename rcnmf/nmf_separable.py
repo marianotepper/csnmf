@@ -8,15 +8,14 @@
 """
 
 from __future__ import absolute_import
-
 import numpy as np
 from rcnmf.third_party import mrnmf
-import compression
+import rcnmf.compression
 
 
 def compute_compressed(data, q, alg, n_power_iter=0):
 
-    data_comp = compression.compress(data, q, n_power_iter)
+    data_comp = rcnmf.compression.compress(data, q, n_power_iter)
     colnorms = np.sum(np.fabs(data), axis=0)
 
     return mrnmf.nmf(data_comp, colnorms, alg, q)
@@ -24,7 +23,7 @@ def compute_compressed(data, q, alg, n_power_iter=0):
 
 def compute(data, q, alg, n_power_iter=0):
 
-    data_comp = compression.compress(data, data.shape[1], n_power_iter)
+    data_comp = rcnmf.compression.compress(data, data.shape[1], n_power_iter)
     data_comp = np.linalg.qr(data_comp)[1]
     # TODO will have to re-implement this out-of-core
     colnorms = np.sum(np.fabs(data), axis=0)
