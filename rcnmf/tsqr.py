@@ -37,7 +37,7 @@ def tsqr(data, blockshape=None):
     Shape of the blocks that will be used to compute
     the blocked QR decomposition. We have the restrictions:
     - blockshape[1] == data.shape[1]
-    - blockshape[0]*data.shape[1] must fit in memory
+    - blockshape[0]*data.shape[1] must fit in main memory
     :return: tuple of dask.array.Array
     First and second tuple elements correspond to Q and R, of the
     QR decomposition.
@@ -57,13 +57,14 @@ def tsqr(data, blockshape=None):
     dsk_r_st1 = {('R_st1', i, 0): (operator.getitem, ('QR_st1', i, 0), 1)
                  for i in xrange(numblocks[0])}
 
+    # Stacking for in-core QR computation
     def _vstack(*args):
         tup = tuple(args)
         return np.vstack(tup)
 
     to_stack = [_vstack] + [('R_st1', i, 0) for i in xrange(numblocks[0])]
     dsk_r_st1_stacked = {('R_st1_stacked', 0, 0): tuple(to_stack)}
-
+    # In-core QR computation
     dsk_qr_st2 = da.core.top(np.linalg.qr, 'QR_st2', 'ij',
                              'R_st1_stacked', 'ij',
                              numblocks={'R_st1_stacked': (1, 1)})
