@@ -4,12 +4,13 @@ import matplotlib.pyplot as plt
 from dask.dot import dot_graph
 import rcnmf.tsqr
 
-def test_tsqr():
+
+def run():
     mat = np.random.rand(100, 20)
     blockshape = (100, 20)
     data = da.from_array(mat, blockshape=blockshape, name='A')
 
-    q, r = rcnmf.tsqr(data, blockshape=blockshape)
+    q, r = rcnmf.tsqr.tsqr(data, blockshape=blockshape)
 
     dot_graph(q.dask, filename='q')
     dot_graph(r.dask, filename='r')
@@ -42,4 +43,4 @@ def test_tsqr():
     plt.show()
 
 if __name__ == '__main__':
-    test_tsqr()
+    run()
