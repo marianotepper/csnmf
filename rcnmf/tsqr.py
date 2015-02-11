@@ -20,7 +20,7 @@ def _findnumblocks(shape, blockshape):
     def div_ceil(t):
         return int(ceil(float(t[0]) / t[1]))
 
-    nb = [div_ceil(t) for t in zip(*[shape, blockshape])]
+    nb = [div_ceil(elem) for elem in zip(*[shape, blockshape])]
     return tuple(nb)
 
 
@@ -80,10 +80,9 @@ def tsqr(data, blockshape=None, name=None):
                              name_r_st1_stacked, 'ij',
                              numblocks={name_r_st1_stacked: (1, 1)})
     # qr[0]
-
     name_q_st2_aux = prefix + 'Q_st2_aux'
-    dsk_q_st2_aux = {(name_q_st2_aux, 0, 0):
-                         (operator.getitem, (name_qr_st2, 0, 0), 0)}
+    dsk_q_st2_aux = {(name_q_st2_aux, 0, 0): (operator.getitem,
+                                              (name_qr_st2, 0, 0), 0)}
     name_q_st2 = prefix + 'Q_st2'
     dsk_q_st2 = dict(((name_q_st2,) + ijk,
                       (operator.getitem, (name_q_st2_aux, 0, 0),
