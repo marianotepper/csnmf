@@ -9,36 +9,44 @@
 
 import numpy as np
 from itertools import product
-import dask
 import dask.array as da
-import into
 from math import ceil
 import matplotlib.pyplot as plt
-import tempfile
 import operator
 
 
-def findnumblocks(shape, blockshape):
-
+def _findnumblocks(shape, blockshape):
     def div_ceil(t):
         return int(ceil(float(t[0]) / t[1]))
+
     nb = [div_ceil(t) for t in zip(*[shape, blockshape])]
     return tuple(nb)
 
 
-def create_keys(name, numblocks):
-    block_list = map(tuple, map(range, numblocks))
-    keys = [[name]]
-    keys.extend(block_list)
-    return list(product(*keys))
-
-
 def tsqr(data, blockshape=None):
+    """
+    Implementation of the direct TSQR, as presented in:
+
+    A. Benson, D. Gleich, and J. Demmel.
+    Direct QR factorizations for tall-and-skinny matrices in
+    MapReduce architectures.
+    IEEE International Conference on Big Data, 2013.
+
+    :param data: dask array object
+    :param blockshape: tuple
+    Shape of the blocks that will be used to compute
+    the blocked QR decomposition. We have the restrictions:
+    - blockshape[1] == data.shape[1]
+    - blockshape[0]*data.shape[1] must fit in memory
+    :return: tuple of dask.array.Array
+    First and second tuple elements correspond to Q and R, of the
+    QR decomposition.
+    """
 
     m, n = mat.shape
-    assert(n == blockshape[1])
+    assert (n == blockshape[1])
 
-    numblocks = findnumblocks(mat.shape, blockshape)
+    numblocks = _findnumblocks(mat.shape, blockshape)
 
     dsk_qr_st1 = da.core.top(np.linalg.qr, 'QR_st1', 'ij', 'A', 'ij',
                              numblocks={'A': numblocks})
@@ -51,19 +59,20 @@ def tsqr(data, blockshape=None):
 
     def _vstack(*args):
         tup = tuple(args)
-        # print [t.shape for t in tup]
         return np.vstack(tup)
 
-    to_append = [_vstack] + [('R_st1', i, 0) for i in xrange(numblocks[0])]
-    dsk_r_st1_stacked = {('R_st1_stacked', 0, 0): tuple(to_append)}
+    to_stack = [_vstack] + [('R_st1', i, 0) for i in xrange(numblocks[0])]
+    dsk_r_st1_stacked = {('R_st1_stacked', 0, 0): tuple(to_stack)}
 
-    dsk_qr_st2 = da.core.top(np.linalg.qr, 'QR_st2', 'ij', 'R_st1_stacked', 'ij',
+    dsk_qr_st2 = da.core.top(np.linalg.qr, 'QR_st2', 'ij',
+                             'R_st1_stacked', 'ij',
                              numblocks={'R_st1_stacked': (1, 1)})
     # qr[0]
     dsk_q_st2_aux = {('Q_st2_aux', 0, 0): (operator.getitem, ('QR_st2', 0, 0), 0)}
     dsk_q_st2 = dict((('Q_st2',) + ijk,
                       (operator.getitem, ('Q_st2_aux', 0, 0),
-                       tuple(slice(i*d, (i+1)*d) for i, d in zip(ijk, (n, n)))))
+                       tuple(slice(i * d, (i + 1) * d) for i, d in
+                             zip(ijk, (n, n)))))
                      for ijk in product(*map(range, numblocks)))
     # qr[1]
     dsk_r_st2 = {('R', i, 0): (operator.getitem, ('QR_st2', i, 0), 1)
@@ -90,20 +99,17 @@ def tsqr(data, blockshape=None):
     dsk_r.update(dsk_qr_st2)
     dsk_r.update(dsk_r_st2)
 
-    # print dsk_q
-    # print dsk_r
+    q = da.Array(dsk_q, 'Q', shape=mat.shape, blockshape=blockshape)
+    r = da.Array(dsk_r, 'R', shape=(n, n), blockshape=(n, n))
 
-    Q = da.Array(dsk_q, 'Q', shape=mat.shape, blockshape=blockshape)
-    R = da.Array(dsk_r, 'R', shape=(n, n), blockshape=(n, n))
+    return q, r
 
-    return Q, R
 
 if __name__ == '__main__':
-
     mat = np.random.rand(100, 20)
-    blockshape=(100, 20)
+    blockshape = (100, 20)
     data = da.from_array(mat, blockshape=blockshape, name='A')
-    print data.dask
+
     Q, R = tsqr(data, blockshape=blockshape)
 
     print Q.shape
