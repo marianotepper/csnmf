@@ -8,11 +8,14 @@
 """
 
 import numpy as np
-from itertools import product
+from itertools import count, product
 import dask.array as da
 from math import ceil
 import matplotlib.pyplot as plt
 import operator
+from dask.dot import dot_graph
+
+names = ('tsqr_%d' % i for i in count(1))
 
 
 def _findnumblocks(shape, blockshape):
@@ -23,7 +26,7 @@ def _findnumblocks(shape, blockshape):
     return tuple(nb)
 
 
-def tsqr(data, blockshape=None):
+def tsqr(data, blockshape=None, name=None):
     """
     Implementation of the direct TSQR, as presented in:
 
@@ -31,6 +34,7 @@ def tsqr(data, blockshape=None):
     Direct QR factorizations for tall-and-skinny matrices in
     MapReduce architectures.
     IEEE International Conference on Big Data, 2013.
+    http://arxiv.org/abs/1301.1071
 
     :param data: dask array object
     :param blockshape: tuple
@@ -43,18 +47,25 @@ def tsqr(data, blockshape=None):
     QR decomposition.
     """
 
-    m, n = mat.shape
+    m, n = data.shape
     assert (n == blockshape[1])
 
-    numblocks = _findnumblocks(mat.shape, blockshape)
+    prefix = name or next(names)
+    prefix += '_'
+    print prefix
 
-    dsk_qr_st1 = da.core.top(np.linalg.qr, 'QR_st1', 'ij', 'A', 'ij',
-                             numblocks={'A': numblocks})
+    numblocks = _findnumblocks(data.shape, blockshape)
+
+    name_qr_st1 = prefix + 'QR_st1'
+    dsk_qr_st1 = da.core.top(np.linalg.qr, name_qr_st1, 'ij', data.name, 'ij',
+                             numblocks={data.name: numblocks})
     # qr[0]
-    dsk_q_st1 = {('Q_st1', i, 0): (operator.getitem, ('QR_st1', i, 0), 0)
+    name_q_st1 = prefix + 'Q_st1'
+    dsk_q_st1 = {(name_q_st1, i, 0): (operator.getitem, (name_qr_st1, i, 0), 0)
                  for i in xrange(numblocks[0])}
     # qr[1]
-    dsk_r_st1 = {('R_st1', i, 0): (operator.getitem, ('QR_st1', i, 0), 1)
+    name_r_st1 = prefix + 'R_st1'
+    dsk_r_st1 = {(name_r_st1, i, 0): (operator.getitem, (name_qr_st1, i, 0), 1)
                  for i in xrange(numblocks[0])}
 
     # Stacking for in-core QR computation
@@ -62,25 +73,32 @@ def tsqr(data, blockshape=None):
         tup = tuple(args)
         return np.vstack(tup)
 
-    to_stack = [_vstack] + [('R_st1', i, 0) for i in xrange(numblocks[0])]
-    dsk_r_st1_stacked = {('R_st1_stacked', 0, 0): tuple(to_stack)}
+    to_stack = [_vstack] + [(name_r_st1, i, 0) for i in xrange(numblocks[0])]
+    name_r_st1_stacked = prefix + 'R_st1_stacked'
+    dsk_r_st1_stacked = {(name_r_st1_stacked, 0, 0): tuple(to_stack)}
     # In-core QR computation
-    dsk_qr_st2 = da.core.top(np.linalg.qr, 'QR_st2', 'ij',
-                             'R_st1_stacked', 'ij',
-                             numblocks={'R_st1_stacked': (1, 1)})
+    name_qr_st2 = prefix + 'QR_st2'
+    dsk_qr_st2 = da.core.top(np.linalg.qr, name_qr_st2, 'ij',
+                             name_r_st1_stacked, 'ij',
+                             numblocks={name_r_st1_stacked: (1, 1)})
     # qr[0]
-    dsk_q_st2_aux = {('Q_st2_aux', 0, 0): (operator.getitem, ('QR_st2', 0, 0), 0)}
-    dsk_q_st2 = dict((('Q_st2',) + ijk,
-                      (operator.getitem, ('Q_st2_aux', 0, 0),
+
+    name_q_st2_aux = prefix + 'Q_st2_aux'
+    dsk_q_st2_aux = {(name_q_st2_aux, 0, 0): (operator.getitem, (name_qr_st2, 0, 0), 0)}
+    name_q_st2 = prefix + 'Q_st2'
+    dsk_q_st2 = dict(((name_q_st2,) + ijk,
+                      (operator.getitem, (name_q_st2_aux, 0, 0),
                        tuple(slice(i * d, (i + 1) * d) for i, d in
                              zip(ijk, (n, n)))))
                      for ijk in product(*map(range, numblocks)))
     # qr[1]
-    dsk_r_st2 = {('R', i, 0): (operator.getitem, ('QR_st2', i, 0), 1)
+    name_r_st2 = prefix + 'R'
+    dsk_r_st2 = {(name_r_st2, i, 0): (operator.getitem, (name_qr_st2, i, 0), 1)
                  for i in xrange(numblocks[0])}
 
-    dsk_q_st3 = da.core.top(np.dot, 'Q', 'ij', 'Q_st1', 'ij', 'Q_st2', 'ij',
-                            numblocks={'Q_st1': numblocks, 'Q_st2': numblocks})
+    name_q_st3 = prefix + 'Q'
+    dsk_q_st3 = da.core.top(np.dot, name_q_st3, 'ij', name_q_st1, 'ij', name_q_st2, 'ij',
+                            numblocks={name_q_st1: numblocks, name_q_st2: numblocks})
 
     dsk_q = {}
     dsk_q.update(data.dask)
@@ -100,8 +118,11 @@ def tsqr(data, blockshape=None):
     dsk_r.update(dsk_qr_st2)
     dsk_r.update(dsk_r_st2)
 
-    q = da.Array(dsk_q, 'Q', shape=mat.shape, blockshape=blockshape)
-    r = da.Array(dsk_r, 'R', shape=(n, n), blockshape=(n, n))
+    q = da.Array(dsk_q, name_q_st3, shape=data.shape, blockshape=blockshape)
+    r = da.Array(dsk_r, name_r_st2, shape=(n, n), blockshape=(n, n))
+
+    dot_graph(q.dask, filename='q')
+    dot_graph(r.dask, filename='r')
 
     return q, r
 
@@ -119,6 +140,8 @@ if __name__ == '__main__':
     R = np.array(R)
     print R.shape
 
+    print np.linalg.norm(mat - np.dot(Q, R))
+
     plt.figure()
     plt.subplot(2, 4, 1)
     plt.imshow(mat, interpolation='nearest')
@@ -135,5 +158,7 @@ if __name__ == '__main__':
     plt.spy(Q)
     plt.subplot(2, 4, 8)
     plt.spy(R)
+
+
 
     plt.show()
