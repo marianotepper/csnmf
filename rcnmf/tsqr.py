@@ -11,9 +11,7 @@ import numpy as np
 from itertools import count, product
 import dask.array as da
 from math import ceil
-import matplotlib.pyplot as plt
 import operator
-from dask.dot import dot_graph
 
 names = ('tsqr_%d' % i for i in count(1))
 
@@ -84,7 +82,8 @@ def tsqr(data, blockshape=None, name=None):
     # qr[0]
 
     name_q_st2_aux = prefix + 'Q_st2_aux'
-    dsk_q_st2_aux = {(name_q_st2_aux, 0, 0): (operator.getitem, (name_qr_st2, 0, 0), 0)}
+    dsk_q_st2_aux = {(name_q_st2_aux, 0, 0):
+                         (operator.getitem, (name_qr_st2, 0, 0), 0)}
     name_q_st2 = prefix + 'Q_st2'
     dsk_q_st2 = dict(((name_q_st2,) + ijk,
                       (operator.getitem, (name_q_st2_aux, 0, 0),
@@ -97,8 +96,10 @@ def tsqr(data, blockshape=None, name=None):
                  for i in xrange(numblocks[0])}
 
     name_q_st3 = prefix + 'Q'
-    dsk_q_st3 = da.core.top(np.dot, name_q_st3, 'ij', name_q_st1, 'ij', name_q_st2, 'ij',
-                            numblocks={name_q_st1: numblocks, name_q_st2: numblocks})
+    dsk_q_st3 = da.core.top(np.dot, name_q_st3, 'ij', name_q_st1, 'ij',
+                            name_q_st2, 'ij',
+                            numblocks={name_q_st1: numblocks,
+                                       name_q_st2: numblocks})
 
     dsk_q = {}
     dsk_q.update(data.dask)
@@ -121,44 +122,4 @@ def tsqr(data, blockshape=None, name=None):
     q = da.Array(dsk_q, name_q_st3, shape=data.shape, blockshape=blockshape)
     r = da.Array(dsk_r, name_r_st2, shape=(n, n), blockshape=(n, n))
 
-    dot_graph(q.dask, filename='q')
-    dot_graph(r.dask, filename='r')
-
     return q, r
-
-
-if __name__ == '__main__':
-    mat = np.random.rand(100, 20)
-    blockshape = (100, 20)
-    data = da.from_array(mat, blockshape=blockshape, name='A')
-
-    Q, R = tsqr(data, blockshape=blockshape)
-
-    print Q.shape
-    Q = np.array(Q)
-
-    R = np.array(R)
-    print R.shape
-
-    print np.linalg.norm(mat - np.dot(Q, R))
-
-    plt.figure()
-    plt.subplot(2, 4, 1)
-    plt.imshow(mat, interpolation='nearest')
-    plt.subplot(2, 4, 2)
-    plt.imshow(Q, interpolation='nearest')
-    plt.subplot(2, 4, 3)
-    plt.imshow(np.dot(Q.T, Q), interpolation='nearest')
-    plt.subplot(2, 4, 4)
-    plt.imshow(R, interpolation='nearest')
-
-    plt.subplot(2, 4, 5)
-    plt.spy(mat)
-    plt.subplot(2, 4, 6)
-    plt.spy(Q)
-    plt.subplot(2, 4, 8)
-    plt.spy(R)
-
-
-
-    plt.show()
