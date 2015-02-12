@@ -29,4 +29,7 @@ dot_graph(omega.dask, filename='omega')
 dot_graph(q.dask, filename='q')
 dot_graph(mul.dask, filename='mul')
 
+uri = temp_file.name + '::/mul'
+into(uri, mul)
+
 temp_file.close()
