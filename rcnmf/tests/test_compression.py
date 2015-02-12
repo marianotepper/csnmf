@@ -10,34 +10,34 @@
 from __future__ import absolute_import
 import numpy as np
 from dask.array import Array, random
+from dask.array.into import discover
 import blaze
 import time
 import h5py
 import os
 import matplotlib.pyplot as plt
-import pickle
 import rcnmf.compression as randcomp
+import tempfile
 
 
 def size_timing(m, n, q, n_power_iter=0):
 
     def select_blocksize(k):
         blocksize = 1
-        while k / (10 * blocksize) > 1:
+        while k / (10 * blocksize) >= 1:
             blocksize *= 10
+        blocksize = 2500
         return min(blocksize, int(1e4))
 
     blockshape = (select_blocksize(m), select_blocksize(n))
+    print(blockshape)
 
     X_disk = random.standard_normal(size=(m, n),
                                     blockshape=blockshape)
     X_disk = blaze.Data(X_disk)
 
-    filename = 'data.hdf5'
-    if os.path.isfile(filename):
-        os.remove(filename)
-    f = h5py.File(filename)
-    f.close()
+    temp_file = tempfile.NamedTemporaryFile(suffix='.hdf5')
+    filename = temp_file.name
 
     blaze.into(filename + '::/X', X_disk)
 
@@ -45,24 +45,44 @@ def size_timing(m, n, q, n_power_iter=0):
 
     t = time.clock()
     randcomp.compress(filename + '::/X', q,
-                      n_power_iter=n_power_iter,
+                      n_power_iter=0,
                       blockshape=blockshape)
     tid = time.clock() - t
 
-    data_array = blaze.into(Array, filename + '::/X', blockshape=blockshape)
-    X = blaze.into(np.ndarray, blaze.Data(data_array))
-
     t = time.clock()
-    randcomp.compress(X, q, n_power_iter=n_power_iter)
-    tim = time.clock() - t
+    randcomp.compress(filename + '::/X', q,
+                      n_power_iter=n_power_iter,
+                      blockshape=blockshape)
+    tid_powit = time.clock() - t
 
-    return tid, tim, hdf5size
 
-if __name__ == '__main__':
+    print float(hdf5size) / (6 * (2**30))
 
+    if hdf5size < 6 * (2**30):
+        data_array = blaze.into(Array, filename + '::/X',
+                                blockshape=blockshape)
+        X = blaze.into(np.ndarray, blaze.Data(data_array))
+        t = time.clock()
+        randcomp.compress(X, q, n_power_iter=0)
+        tim = time.clock() - t
+        t = time.clock()
+        randcomp.compress(X, q, n_power_iter=n_power_iter)
+        tim_powit = time.clock() - t
+
+    else:
+        tim = np.nan
+        tim_powit = np.nan
+
+    temp_file.close()
+
+    return hdf5size, tid, tid_powit, tim, tim_powit
+
+
+def run():
     only_draw = False
 
-    sizes_m = map(int, [5e3, 1e4, 5e4, 1e5, 5e5])
+    # sizes_m = map(int, [5e3, 1e4, 5e4, 1e5, 2e5, 5e5, 1e6])
+    sizes_m = map(int, [5e3, 1e4])
     n = int(5e3)
     q = 10
     repetitions = 1
@@ -78,19 +98,18 @@ if __name__ == '__main__':
         for i, s in enumerate(sizes_m):
             print i, s
             for k in range(repetitions):
-                tid, tim, hdf5s = size_timing(s, n, q)
-                times_in_disk[i, k] = tid
-                times_in_memory[i, k] = tim
-                hdf5sizes[i] = hdf5s
-
-                tid, tim, _ = size_timing(s, n, q, n_power_iter=4)
-                times_in_disk_powit[i, k] = tid
-                times_in_memory_powit[i, k] = tim
+                res = size_timing(s, n, q, n_power_iter=4)
+                hdf5sizes[i] = res[0]
+                times_in_disk[i, k] = res[1]
+                times_in_memory[i, k] = res[3]
+                times_in_disk_powit[i, k] = res[2]
+                times_in_memory_powit[i, k] = res[4]
 
         times_in_disk = np.mean(times_in_disk, axis=1)
         times_in_memory = np.mean(times_in_memory, axis=1)
         times_in_disk_powit = np.mean(times_in_disk_powit, axis=1)
         times_in_memory_powit = np.mean(times_in_memory_powit, axis=1)
+        hdf5sizes /= 2**30
 
         with open('test_compression_result', 'w') as f:
             np.save(f, times_in_disk)
@@ -107,48 +126,48 @@ if __name__ == '__main__':
         hdf5sizes = np.load(f)
 
     print sizes_m
-    # print hdf5sizes
-    # print times_in_memory
-    # print times_in_disk
+    print hdf5sizes
+    print times_in_memory
+    print times_in_disk
     print map(lambda a, b: a/b, times_in_disk, times_in_memory)
     print map(lambda a, b: a/b, times_in_disk_powit, times_in_memory_powit)
 
-    plt.figure()
+    fig = plt.figure()
     ax1 = plt.axes()
 
-
     ax1.hold(True)
-    ax1.loglog(sizes_m, times_in_memory,
-               label='In-core',
-               linewidth=2, linestyle='-', color='b')
-    ax1.loglog(sizes_m, times_in_memory_powit,
-               label='In-core with power iterations',
-               linewidth=2, linestyle='--', color='b')
-    ax1.loglog(sizes_m, times_in_disk,
-               label='Out-of-core',
-               linewidth=2, linestyle='-', color='r')
-    ax1.loglog(sizes_m, times_in_disk_powit,
-               label='Out-of-core with power iterations',
-               linewidth=2, linestyle='--', color='r')
+    line1 = ax1.loglog(sizes_m, times_in_memory,
+                       label='In-core',
+                       linewidth=2, linestyle='-', color='b')
+    line2 = ax1.loglog(sizes_m, times_in_memory_powit,
+                       label='In-core with power iterations',
+                       linewidth=2, linestyle='--', color='b')
+    line3 = ax1.loglog(sizes_m, times_in_disk,
+                       label='Out-of-core',
+                       linewidth=2, linestyle='-', color='r')
+    line4 = ax1.loglog(sizes_m, times_in_disk_powit,
+                       label='Out-of-core with power iterations',
+                       linewidth=2, linestyle='--', color='r')
+    ax1.hold(False)
+    ax1.set_xlim(4e3, max(sizes_m) + 4e3)
 
     ax1.set_xticks(sizes_m)
     ax1.set_xticklabels(sizes_m)
-
     ax1.set_xlabel(r'Number $m$ of rows')
     ax1.set_ylabel('Time (s)')
+
     ax1.legend(loc='upper left')
-    ax1.hold(False)
 
     ax2 = ax1.twiny()
-    ax2.loglog(sizes_m, times_in_memory, label='In-core compression', linewidth=0)
-    ax2.loglog(sizes_m, times_in_disk, label='Out-of-core compression', linewidth=0)
+    ax2.loglog(sizes_m, times_in_memory, linewidth=0)
 
-    def tick_function(x):
-        return ["%.1f" % z for z in map(lambda a: float(a) / (2**30), x)]
+    ax2.set_xlim(4e3, max(sizes_m) + 4e3)
 
     ax2.set_xticks(sizes_m)
-    ax2.set_xticklabels(tick_function(hdf5sizes))
+    ax2.set_xticklabels(["%.1f" % z for z in hdf5sizes])
     ax2.set_xlabel('Size of the hdf5 file (GB)')
 
 
+if __name__ == '__main__':
+    run()
     plt.show()
