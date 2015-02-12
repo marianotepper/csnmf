@@ -20,13 +20,12 @@ import rcnmf.compression as randcomp
 import tempfile
 
 
-def size_timing(m, n, q, n_power_iter=0):
+def size_timing(m, n, q):
 
     def select_blocksize(k):
         blocksize = 1
         while k / (10 * blocksize) >= 1:
             blocksize *= 10
-        blocksize = 2500
         return min(blocksize, int(1e4))
 
     blockshape = (select_blocksize(m), select_blocksize(n))
@@ -45,16 +44,8 @@ def size_timing(m, n, q, n_power_iter=0):
 
     t = time.clock()
     randcomp.compress(filename + '::/X', q,
-                      n_power_iter=0,
                       blockshape=blockshape)
     tid = time.clock() - t
-
-    t = time.clock()
-    randcomp.compress(filename + '::/X', q,
-                      n_power_iter=n_power_iter,
-                      blockshape=blockshape)
-    tid_powit = time.clock() - t
-
 
     print float(hdf5size) / (6 * (2**30))
 
@@ -65,17 +56,12 @@ def size_timing(m, n, q, n_power_iter=0):
         t = time.clock()
         randcomp.compress(X, q, n_power_iter=0)
         tim = time.clock() - t
-        t = time.clock()
-        randcomp.compress(X, q, n_power_iter=n_power_iter)
-        tim_powit = time.clock() - t
-
     else:
         tim = np.nan
-        tim_powit = np.nan
 
     temp_file.close()
 
-    return hdf5size, tid, tid_powit, tim, tim_powit
+    return hdf5size, tid, tim
 
 
 def run():
@@ -91,38 +77,28 @@ def run():
         shape = (len(sizes_m), repetitions)
         times_in_disk = np.zeros(shape)
         times_in_memory = np.zeros(shape)
-        times_in_disk_powit = np.zeros(shape)
-        times_in_memory_powit = np.zeros(shape)
         hdf5sizes = np.zeros((len(sizes_m), 1))
 
         for i, s in enumerate(sizes_m):
             print i, s
             for k in range(repetitions):
-                res = size_timing(s, n, q, n_power_iter=4)
+                res = size_timing(s, n, q)
                 hdf5sizes[i] = res[0]
                 times_in_disk[i, k] = res[1]
-                times_in_memory[i, k] = res[3]
-                times_in_disk_powit[i, k] = res[2]
-                times_in_memory_powit[i, k] = res[4]
+                times_in_memory[i, k] = res[2]
 
         times_in_disk = np.mean(times_in_disk, axis=1)
         times_in_memory = np.mean(times_in_memory, axis=1)
-        times_in_disk_powit = np.mean(times_in_disk_powit, axis=1)
-        times_in_memory_powit = np.mean(times_in_memory_powit, axis=1)
         hdf5sizes /= 2**30
 
         with open('test_compression_result', 'w') as f:
             np.save(f, times_in_disk)
             np.save(f, times_in_memory)
-            np.save(f, times_in_disk_powit)
-            np.save(f, times_in_memory_powit)
             np.save(f, hdf5sizes)
 
     with open('test_compression_result', 'r') as f:
         times_in_disk = np.load(f)
         times_in_memory = np.load(f)
-        times_in_disk_powit = np.load(f)
-        times_in_memory_powit = np.load(f)
         hdf5sizes = np.load(f)
 
     print sizes_m
@@ -130,7 +106,6 @@ def run():
     print times_in_memory
     print times_in_disk
     print map(lambda a, b: a/b, times_in_disk, times_in_memory)
-    print map(lambda a, b: a/b, times_in_disk_powit, times_in_memory_powit)
 
     fig = plt.figure()
     ax1 = plt.axes()
@@ -139,15 +114,9 @@ def run():
     line1 = ax1.loglog(sizes_m, times_in_memory,
                        label='In-core',
                        linewidth=2, linestyle='-', color='b')
-    line2 = ax1.loglog(sizes_m, times_in_memory_powit,
-                       label='In-core with power iterations',
-                       linewidth=2, linestyle='--', color='b')
     line3 = ax1.loglog(sizes_m, times_in_disk,
                        label='Out-of-core',
                        linewidth=2, linestyle='-', color='r')
-    line4 = ax1.loglog(sizes_m, times_in_disk_powit,
-                       label='Out-of-core with power iterations',
-                       linewidth=2, linestyle='--', color='r')
     ax1.hold(False)
     ax1.set_xlim(4e3, max(sizes_m) + 4e3)
 
