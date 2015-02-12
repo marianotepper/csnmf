@@ -50,7 +50,6 @@ def tsqr(data, blockshape=None, name=None):
 
     prefix = name or next(names)
     prefix += '_'
-    print prefix
 
     numblocks = _findnumblocks(data.shape, blockshape)
 
