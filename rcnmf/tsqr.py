@@ -70,12 +70,16 @@ def tsqr(data, blockshape=None, name=None):
         tup = tuple(args)
         return np.vstack(tup)
 
+    def qr(*args):
+        print 'execution', count(1)
+        return np.linalg.qr(*args)
+
     to_stack = [_vstack] + [(name_r_st1, i, 0) for i in xrange(numblocks[0])]
     name_r_st1_stacked = prefix + 'R_st1_stacked'
     dsk_r_st1_stacked = {(name_r_st1_stacked, 0, 0): tuple(to_stack)}
     # In-core QR computation
     name_qr_st2 = prefix + 'QR_st2'
-    dsk_qr_st2 = da.core.top(np.linalg.qr, name_qr_st2, 'ij',
+    dsk_qr_st2 = da.core.top(qr, name_qr_st2, 'ij',
                              name_r_st1_stacked, 'ij',
                              numblocks={name_r_st1_stacked: (1, 1)})
     # qr[0]
@@ -90,8 +94,7 @@ def tsqr(data, blockshape=None, name=None):
                      for ijk in product(*map(range, numblocks)))
     # qr[1]
     name_r_st2 = prefix + 'R'
-    dsk_r_st2 = {(name_r_st2, i, 0): (operator.getitem, (name_qr_st2, i, 0), 1)
-                 for i in xrange(numblocks[0])}
+    dsk_r_st2 = {(name_r_st2, 0, 0): (operator.getitem, (name_qr_st2, 0, 0), 1)}
 
     name_q_st3 = prefix + 'Q'
     dsk_q_st3 = da.core.top(np.dot, name_q_st3, 'ij', name_q_st1, 'ij',
