@@ -71,7 +71,7 @@ def tsqr(data, blockshape=None, name=None):
         return np.vstack(tup)
 
     def qr2(*args):
-        print 'execution', count(1)
+        print 'execution'
         return np.linalg.qr(*args)
 
     to_stack = [_vstack] + [(name_r_st1, i, 0) for i in xrange(numblocks[0])]
