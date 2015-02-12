@@ -1,3 +1,12 @@
+"""
+   Copyright (c) 2015, Mariano Tepper, Duke University.
+   All rights reserved.
+
+   This file is part of RCNMF and is under the BSD 3-Clause License,
+   which can be found in the LICENSE file in the root directory, or at
+   http://opensource.org/licenses/BSD-3-Clause
+"""
+
 import numpy as np
 import dask.array as da
 import matplotlib.pyplot as plt
@@ -6,8 +15,8 @@ import rcnmf.tsqr
 
 
 def run():
-    mat = np.random.rand(100, 20)
-    blockshape = (100, 20)
+    mat = np.random.rand(1000, 20)
+    blockshape = (200, 20)
     data = da.from_array(mat, blockshape=blockshape, name='A')
 
     q, r = rcnmf.tsqr.tsqr(data, blockshape=blockshape)
@@ -26,19 +35,20 @@ def run():
     plt.figure()
     plt.subplot(2, 4, 1)
     plt.imshow(mat, interpolation='nearest')
+    plt.title('Original matrix')
     plt.subplot(2, 4, 2)
     plt.imshow(q, interpolation='nearest')
+    plt.title('$\mathbf{Q}$')
     plt.subplot(2, 4, 3)
     plt.imshow(np.dot(q.T, q), interpolation='nearest')
+    plt.title('$\mathbf{Q}^T \mathbf{Q}$')
     plt.subplot(2, 4, 4)
     plt.imshow(r, interpolation='nearest')
+    plt.title('$\mathbf{R}$')
 
-    plt.subplot(2, 4, 5)
-    plt.spy(mat)
-    plt.subplot(2, 4, 6)
-    plt.spy(q)
     plt.subplot(2, 4, 8)
     plt.spy(r)
+    plt.title('Nonzeros in $\mathbf{R}$')
 
     plt.show()
 
