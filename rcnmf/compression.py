@@ -8,21 +8,29 @@
 """
 
 import numpy as np
-from dask.array import Array, random
-import blaze
-import tempfile
+from into import into
+import dask.array as da
+import tsqr
+
+
+def compression_level(q):
+    return max(20, q + 10)
+
+
+def _multiply_power_iterations(data, omega, n_power_iter=0):
+    mat_h = data.dot(omega)
+    for j in range(n_power_iter):
+        mat_h = data.dot(data.T.dot(mat_h))
+    return mat_h
 
 
 def compress_in_memory(data, q, n_power_iter=0):
 
     n = data.shape[1]
-    l = max(20, q + 10)
-    # l = n
+    comp_level = compression_level(q)
+    omega = np.random.standard_normal(size=(n, comp_level))
 
-    omega = np.random.standard_normal(size=(n, l))
-    mat_h = data.dot(omega)
-    for j in range(n_power_iter):
-        mat_h = data.dot(data.T.dot(mat_h))
+    mat_h = _multiply_power_iterations(data, omega, n_power_iter=n_power_iter)
 
     comp = np.linalg.qr(mat_h, 'reduced')[0]
     comp = comp.T
@@ -32,32 +40,17 @@ def compress_in_memory(data, q, n_power_iter=0):
 
 def compress_in_disk(uri, q, n_power_iter=0, blockshape=None):
 
-    data_array = blaze.into(Array, uri, blockshape=blockshape)
-    data = blaze.Data(data_array)
+    data = into(da.Array, uri, blockshape=blockshape)
 
     n = data.shape[1]
-    l = max(20, q + 10)
+    comp_level = compression_level(q)
+    omega = da.random.standard_normal(size=(n, comp_level),
+                                      blockshape=(blockshape[1], comp_level))
 
-    np.random.seed(0)
+    mat_h = _multiply_power_iterations(data, omega, n_power_iter=n_power_iter)
 
-    omega_array = random.standard_normal(size=(n, l),
-                                         blockshape=(blockshape[1], l))
-    omega = blaze.Data(omega_array)
-
-    mat_h = blaze.Data(blaze.into(Array, data.dot(omega)))
-
-    for j in range(n_power_iter):
-        temp_file = tempfile.NamedTemporaryFile(suffix='.hdf5')
-        blaze.into(temp_file.name + '::/temp', data.T.dot(mat_h))
-        temp = blaze.Data(blaze.into(Array, temp_file.name + '::/temp',
-                          blockshape=(blockshape[1], l)))
-        mat_h = blaze.Data(blaze.into(Array, data.dot(temp)))
-        temp_file.close()
-
-    mat_h = blaze.into(np.ndarray, mat_h)
-
-    comp = np.linalg.qr(mat_h, 'reduced')[0]
-    comp = comp.T
+    q, r = tsqr.tsqr(mat_h, blockshape=(blockshape[0], mat_h.shape[1]))
+    comp = q.T
 
     return comp.dot(data), comp
 
