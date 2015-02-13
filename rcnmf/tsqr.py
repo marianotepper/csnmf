@@ -24,7 +24,7 @@ def _findnumblocks(shape, blockshape):
     return tuple(nb)
 
 
-def tsqr(data, blockshape=None, name=None):
+def tsqr(data, name=None):
     """
     Implementation of the direct TSQR, as presented in:
 
@@ -35,7 +35,6 @@ def tsqr(data, blockshape=None, name=None):
     http://arxiv.org/abs/1301.1071
 
     :param data: dask array object
-    :param blockshape: tuple
     Shape of the blocks that will be used to compute
     the blocked QR decomposition. We have the restrictions:
     - blockshape[1] == data.shape[1]
@@ -44,9 +43,11 @@ def tsqr(data, blockshape=None, name=None):
     First and second tuple elements correspond to Q and R, of the
     QR decomposition.
     """
-
+    assert data.ndim == 2
+    assert len(set(data.blockdims[0])) == 1  # Uniform block size in rows
+    assert len(data.blockdims[1]) == 1  # Only one column block
+    blockshape = (data.blockdims[0][0], data.blockdims[1][0])
     m, n = data.shape
-    assert (n == blockshape[1])
 
     prefix = name or next(names)
     prefix += '_'
