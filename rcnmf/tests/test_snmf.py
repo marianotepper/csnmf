@@ -10,12 +10,9 @@
 from __future__ import absolute_import, print_function
 import numpy as np
 import rcnmf.snmf
-
+import time
 
 if __name__ == '__main__':
-
-    import time
-    np.random.seed(10)
 
     m = 10000
     n = 1000
@@ -27,8 +24,6 @@ if __name__ == '__main__':
     x = np.fabs(np.random.standard_normal(size=(m, q)))
     y = np.fabs(np.random.standard_normal(size=(q, n)))
     data = x.dot(y)
-
-
 
     algorithms = ['SPA', 'xray']
     for alg in algorithms:
