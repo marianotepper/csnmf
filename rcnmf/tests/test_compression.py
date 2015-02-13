@@ -88,7 +88,6 @@ def run(only_draw=False):
             print('iteration: {0}, size: {1}, {2}'.format(i, s, n))
             for k in range(repetitions):
                 res = size_timing(s, n, q)
-                print res[1:]
                 hdf5sizes[i] = res[0]
                 times_in_disk[i, k] = res[1]
                 times_in_memory[i, k] = res[2]
