@@ -7,10 +7,11 @@
    http://opensource.org/licenses/BSD-3-Clause
 """
 
+from __future__ import absolute_import, print_function
 import numpy as np
 from into import into
 import dask.array as da
-import tsqr
+import rcnmf.tsqr
 
 
 def compression_level(q):
@@ -27,7 +28,7 @@ def _inner_compress(data, omega, n_power_iter=0, qr=np.linalg.qr):
     return comp.dot(data), comp
 
 
-def compress(data, q, n_power_iter=0, blockshape=None):
+def compress(data, q, n_power_iter=0):
 
     n = data.shape[1]
     comp_level = compression_level(q)
@@ -37,9 +38,9 @@ def compress(data, q, n_power_iter=0, blockshape=None):
         qr = np.linalg.qr
     elif isinstance(data, da.Array):
         omega = da.random.standard_normal(size=(n, comp_level),
-                                          blockshape=(blockshape[1],
+                                          blockshape=(data.blockdims[1][0],
                                                       comp_level))
-        qr = tsqr.tsqr
+        qr = rcnmf.tsqr.tsqr
     else:
         raise TypeError('Cannot compress data of type ' + type(data).__name__)
 
