@@ -17,53 +17,30 @@ def compression_level(q):
     return max(20, q + 10)
 
 
-def _multiply_power_iterations(data, omega, n_power_iter=0):
+def _inner_compress(data, omega, n_power_iter=0, qr=np.linalg.qr):
+
     mat_h = data.dot(omega)
     for j in range(n_power_iter):
         mat_h = data.dot(data.T.dot(mat_h))
-    return mat_h
-
-
-def compress_in_memory(data, q, n_power_iter=0):
-
-    n = data.shape[1]
-    comp_level = compression_level(q)
-    omega = np.random.standard_normal(size=(n, comp_level))
-
-    mat_h = _multiply_power_iterations(data, omega, n_power_iter=n_power_iter)
-
-    comp = np.linalg.qr(mat_h, 'reduced')[0]
-    comp = comp.T
-
-    return comp.dot(data), comp
-
-
-def compress_in_disk(uri, q, n_power_iter=0, blockshape=None):
-
-    data = into(da.Array, uri, blockshape=blockshape)
-
-    n = data.shape[1]
-    comp_level = compression_level(q)
-    omega = da.random.standard_normal(size=(n, comp_level),
-                                      blockshape=(blockshape[1], comp_level))
-
-    mat_h = _multiply_power_iterations(data, omega, n_power_iter=n_power_iter)
-
-    q, r = tsqr.tsqr(mat_h, blockshape=(blockshape[0], mat_h.shape[1]))
+    q, _ = qr(mat_h)
     comp = q.T
-
     return comp.dot(data), comp
 
 
 def compress(data, q, n_power_iter=0, blockshape=None):
 
+    n = data.shape[1]
+    comp_level = compression_level(q)
+
     if isinstance(data, np.ndarray):
-        comp_data, comp = compress_in_memory(data, q,
-                                             n_power_iter=n_power_iter)
-    elif isinstance(data, basestring):
-        comp_data, comp = compress_in_disk(data, q, n_power_iter=n_power_iter,
-                                           blockshape=blockshape)
+        omega = np.random.standard_normal(size=(n, comp_level))
+        qr = np.linalg.qr
+    elif isinstance(data, da.Array):
+        omega = da.random.standard_normal(size=(n, comp_level),
+                                          blockshape=(blockshape[1],
+                                                      comp_level))
+        qr = tsqr.tsqr
     else:
         raise TypeError('Cannot compress data of type ' + type(data).__name__)
 
-    return comp_data, comp
+    return _inner_compress(data, omega, n_power_iter=n_power_iter, qr=qr)
