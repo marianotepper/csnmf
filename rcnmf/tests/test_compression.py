@@ -7,7 +7,7 @@
    http://opensource.org/licenses/BSD-3-Clause
 """
 
-from __future__ import absolute_import
+from __future__ import absolute_import, print_function
 import numpy as np
 from dask.array import Array, random
 from into import into
