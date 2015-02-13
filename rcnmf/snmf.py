@@ -32,8 +32,6 @@ def compute(data, ncols, alg, compress=False, n_power_iter=0):
     else:
         _, data_comp = np.linalg.qr(data)
 
-    print data_comp.shape
-
     colnorms = _compute_colnorms(data)
 
     return mrnmf.nmf(data_comp, colnorms, alg, ncols)
