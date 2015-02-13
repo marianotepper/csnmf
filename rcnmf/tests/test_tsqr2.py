@@ -17,7 +17,7 @@ data = into(da.Array, uri, blockshape=(100, 100))
 omega = da.random.standard_normal(size=(100, 20), blockshape=(100, 20))
 mat_h = data.dot(omega)
 
-q, r = rcnmf. tsqr.tsqr(mat_h, blockshape=(100, 20))
+q, r = rcnmf. tsqr.tsqr(mat_h)
 
 print data.shape
 print q.shape

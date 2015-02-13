@@ -19,7 +19,7 @@ def run():
     blockshape = (200, 20)
     data = da.from_array(mat, blockshape=blockshape, name='A')
 
-    q, r = rcnmf.tsqr.tsqr(data, blockshape=blockshape)
+    q, r = rcnmf.tsqr.tsqr(data)
 
     dot_graph(q.dask, filename='q')
     dot_graph(r.dask, filename='r')
