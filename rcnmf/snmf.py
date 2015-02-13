@@ -28,11 +28,11 @@ def _compute_colnorms(data):
 
 def compute(data, ncols, alg, compress=False, n_power_iter=0):
     if compress:
-        data_comp = rcnmf.compression.compress(data, ncols, n_power_iter)
+        data_comp, _ = rcnmf.compression.compress(data, ncols, n_power_iter)
     else:
-        data_comp = rcnmf.compression.compress(data, data.shape[1],
-                                               n_power_iter)
-        data_comp, _ = np.linalg.qr(data_comp)
+        _, data_comp = np.linalg.qr(data)
+
+    print data_comp.shape
 
     colnorms = _compute_colnorms(data)
 
