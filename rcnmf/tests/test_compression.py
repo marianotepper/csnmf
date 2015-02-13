@@ -85,7 +85,7 @@ def run(only_draw=False):
         hdf5sizes = np.zeros((1, len(sizes_m)))
 
         for i, s in enumerate(sizes_m):
-            print 'iteration: {0}, size: {1}, {2}'.format(i, s, n)
+            print('iteration: {0}, size: {1}, {2}'.format(i, s, n))
             for k in range(repetitions):
                 res = size_timing(s, n, q)
                 print res[1:]
@@ -108,11 +108,11 @@ def run(only_draw=False):
         times_in_memory = np.load(f)
         hdf5sizes = np.load(f)
 
-    print sizes_m
-    print hdf5sizes.T
-    print times_in_memory
-    print times_in_disk
-    print times_in_disk / times_in_memory
+    print(sizes_m)
+    print(hdf5sizes)
+    print(times_in_memory)
+    print(times_in_disk)
+    print(times_in_disk / times_in_memory)
 
     fig = plt.figure()
     ax1 = plt.axes()
