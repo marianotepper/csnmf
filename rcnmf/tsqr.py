@@ -43,9 +43,14 @@ def tsqr(data, name=None):
     First and second tuple elements correspond to Q and R, of the
     QR decomposition.
     """
-    assert data.ndim == 2
-    assert len(set(data.blockdims[0])) == 1  # Uniform block size in rows
-    assert len(data.blockdims[1]) == 1  # Only one column block
+    if not (data.ndim == 2 and                    # Is a matrix
+            len(set(data.blockdims[0])) == 1 and  # Uniform block size in rows
+            len(data.blockdims[1]) == 1):         # Only one column block
+        raise ValueError(
+            "Input must have the following properites:\n"
+            "  1. Have two dimensions\n"
+            "  2. Have only one column of blocks\n"
+            "  3. Have uniformly sized row blocks")
     blockshape = (data.blockdims[0][0], data.blockdims[1][0])
     m, n = data.shape
 
