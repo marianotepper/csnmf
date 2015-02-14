@@ -44,13 +44,11 @@ def tsqr(data, name=None):
     QR decomposition.
     """
     if not (data.ndim == 2 and                    # Is a matrix
-            len(set(data.blockdims[0])) == 1 and  # Uniform block size in rows
             len(data.blockdims[1]) == 1):         # Only one column block
         raise ValueError(
             "Input must have the following properites:\n"
             "  1. Have two dimensions\n"
-            "  2. Have only one column of blocks\n"
-            "  3. Have uniformly sized row blocks")
+            "  2. Have only one column of blocks")
     blockshape = (data.blockdims[0][0], data.blockdims[1][0])
     m, n = data.shape
 
