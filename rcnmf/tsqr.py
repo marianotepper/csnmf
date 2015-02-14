@@ -24,7 +24,7 @@ def _findnumblocks(shape, blockshape):
     return tuple(nb)
 
 
-def tsqr(data, name=None):
+def qr(data, name=None):
     """
     Implementation of the direct TSQR, as presented in:
 
