@@ -39,7 +39,7 @@ def compress(data, q, n_power_iter=0):
         omega = da.random.standard_normal(size=(n, comp_level),
                                           blockshape=(data.blockdims[1][0],
                                                       comp_level))
-        qr = rcnmf.tsqr.tsqr
+        qr = rcnmf.tsqr.qr
     else:
         raise TypeError('Cannot compress data of type ' + type(data).__name__)
 
