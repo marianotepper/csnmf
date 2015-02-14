@@ -9,14 +9,16 @@
 
 from __future__ import absolute_import, print_function
 import numpy as np
+import dask.array as da
+import timeit
+import itertools
 import rcnmf.snmf
-import time
 
 if __name__ == '__main__':
 
-    m = 10000
-    n = 1000
-    q = 8
+    m = 100000
+    n = 100
+    q = 10
     ncols = 5
 
     print(m, n)
@@ -26,15 +28,22 @@ if __name__ == '__main__':
     data = x.dot(y)
 
     algorithms = ['SPA', 'xray']
-    for alg in algorithms:
-        print(alg + ' algorithm:')
+    compress = [False, True]
+    data_type = [data, da.from_array(data, blockshape=(10000, 100))]
 
-        t = time.clock()
-        cols, H, rel_res = rcnmf.snmf.compute(data, ncols, 'SPA')
-        t = time.clock() - t
-        print('original:', cols, rel_res, t)
+    for tup in itertools.product(algorithms, compress, data_type):
 
-        t = time.clock()
-        cols, H, rel_res = rcnmf.snmf.compute(data, ncols, 'SPA', compress=True)
-        t = time.clock() - t
-        print('compressed:', cols, rel_res, t)
+        t = timeit.default_timer()
+        res = rcnmf.snmf.compute(tup[2], ncols, 'SPA', compress=tup[1])
+        t = timeit.default_timer() - t
+
+        if isinstance(tup[2], np.ndarray):
+            data_type = 'np'
+        elif isinstance(tup[2], da.Array):
+            data_type = 'da'
+
+        base_str = 'algorithm: {alg:4s}; compressed: {comp:d}; ' \
+                   'type: {data_type}; columns {cols}; error {error:.4f};' \
+                   'time {time:.2f}'
+        print(base_str.format(alg=tup[0], comp=tup[1], data_type=data_type,
+                              cols=res[0], error=res[2], time=t))
