@@ -12,11 +12,10 @@ import numpy as np
 from dask.array import Array, random
 from into import into
 from dask.array.into import discover # required by dask.array
-import time
+import timeit
 import os
 import matplotlib.pyplot as plt
 import tempfile
-import h5py
 import rcnmf.compression as randcomp
 
 
@@ -31,8 +30,7 @@ def size_timing(m, n, q):
     blockshape = (select_blocksize(m), select_blocksize(n))
     print('block shape {0}'.format(blockshape))
 
-    x = random.standard_normal(size=(m, n),
-                                    blockshape=blockshape)
+    x = random.standard_normal(size=(m, n), blockshape=blockshape)
 
     temp_file = tempfile.NamedTemporaryFile(suffix='.hdf5')
     filename = temp_file.name
@@ -40,32 +38,21 @@ def size_timing(m, n, q):
     into(filename + '::/X', x)
     hdf5size = float(os.path.getsize(filename))
 
-    f_h5 = h5py.File('myfile.hdf5','w')
-    comp_level = randcomp.compression_level(q)
-    dataset_comp1 = f_h5.create_dataset(filename + '::/Xcomp1', (comp_level, n),
-                                        dtype=np.float64)
-    dataset_comp2 = f_h5.create_dataset(filename + '::/Xcomp2', (comp_level, n),
-                                        dtype=np.float64)
-
-    t = time.clock()
     data = into(Array, filename + '::/X', blockshape=blockshape)
-    data_comp, comp = randcomp.compress(data, q, blockshape=blockshape)
-    data_comp.store(dataset_comp1)
-    tid = time.clock() - t
+
+    t = timeit.default_timer()
+    data_comp, comp = randcomp.compress(data, q)
+    np.array(data_comp)
+    tid = timeit.default_timer() - t
 
     if hdf5size / (2**30) < 20:
-        t = time.clock()
-        data_array = into(Array, filename + '::/X',
-                          blockshape=blockshape)
-        X = into(np.ndarray, data_array)
-        data_comp, comp = randcomp.compress(X, q, n_power_iter=0)
-        dataset_comp2[:] = data_comp[:]
-        tim = time.clock() - t
+        t = timeit.default_timer()
+        data = np.array(data)
+        randcomp.compress(data, q, n_power_iter=0)
+        tim = timeit.default_timer() - t
     else:
         tim = np.nan
 
-    f_h5.close()
-    os.remove('myfile.hdf5')
     temp_file.close()
 
     return hdf5size, tid, tim
@@ -73,7 +60,7 @@ def size_timing(m, n, q):
 
 def run(only_draw=False):
 
-    sizes_m = map(int, [5e3, 1e4, 5e4, 1e5, 2e5, 5e5, 1e6])
+    sizes_m = map(int, [5e3, 7.5e3, 1e4, 3e4, 5e4, 7.5e4, 1e5])
     n = int(5e3)
     q = 10
     repetitions = 1
@@ -88,7 +75,7 @@ def run(only_draw=False):
             print('iteration: {0}, size: {1}, {2}'.format(i, s, n))
             for k in range(repetitions):
                 res = size_timing(s, n, q)
-                hdf5sizes[i] = res[0]
+                hdf5sizes[0, i] = res[0]
                 times_in_disk[i, k] = res[1]
                 times_in_memory[i, k] = res[2]
 
@@ -97,12 +84,12 @@ def run(only_draw=False):
             times_in_memory = np.mean(times_in_memory, axis=1)
         hdf5sizes /= 2**30
 
-        with open('test_compression_result', 'w') as f:
+        with open('test_compression_ooc_result', 'w') as f:
             np.save(f, times_in_disk)
             np.save(f, times_in_memory)
             np.save(f, hdf5sizes)
 
-    with open('test_compression_result', 'r') as f:
+    with open('test_compression_ooc_result', 'r') as f:
         times_in_disk = np.load(f)
         times_in_memory = np.load(f)
         hdf5sizes = np.load(f)
@@ -141,10 +128,10 @@ def run(only_draw=False):
     ax2.set_xlim(4e3, max(sizes_m) + 4e3)
 
     ax2.set_xticks(sizes_m)
-    ax2.set_xticklabels(['{:.1f}'.format(float(z)) for z in hdf5sizes])
+    ax2.set_xticklabels(['{:.2f}'.format(z) for z in hdf5sizes.tolist()[0]])
     ax2.set_xlabel('Size of the hdf5 file (GB)')
 
 
 if __name__ == '__main__':
-    run(only_draw=False)
+    run(only_draw=True)
     plt.show()
