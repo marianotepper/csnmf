@@ -13,8 +13,8 @@ import dask.array as da
 import rcnmf.tsqr
 
 
-def compression_level(q):
-    return max(20, q + 10)
+def compression_level(n, q):
+    return min(max(20, q + 10), n)
 
 
 def _inner_compress(data, omega, n_power_iter=0, qr=np.linalg.qr):
@@ -30,7 +30,7 @@ def _inner_compress(data, omega, n_power_iter=0, qr=np.linalg.qr):
 def compress(data, q, n_power_iter=0):
 
     n = data.shape[1]
-    comp_level = compression_level(q)
+    comp_level = compression_level(n, q)
 
     if isinstance(data, np.ndarray):
         omega = np.random.standard_normal(size=(n, comp_level))
