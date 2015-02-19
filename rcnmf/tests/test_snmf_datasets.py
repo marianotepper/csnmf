@@ -13,15 +13,15 @@ import dask.array as da
 import timeit
 import itertools
 import matplotlib.pyplot as plt
-import h5py
 import pickle
 import scipy.io
+import h5py
 import rcnmf.snmf
 
 
 def run(mat, ncols, blockshape):
 
-    algorithms = ['SPA', 'xray']
+    algorithms = ['SPA', 'XRAY']
     compress = [False, True]
     data = [mat, da.from_array(mat, blockshape=blockshape)]
 
@@ -53,10 +53,10 @@ def run(mat, ncols, blockshape):
     return res_list
 
 
-def plot(x, dict_res, ax):
+def plot(x, dict_res, plot_func):
     colors = ['#e41a1c', '#377eb8', '#4daf4a', '#984ea3']
 
-    ax.hold(True)
+    plt.hold(True)
     k = 0
     for (alg, dtype) in dict_res.keys():
         for comp in dict_res[(alg, dtype)]:
@@ -72,128 +72,18 @@ def plot(x, dict_res, ax):
                 linestyle = '--'
             label += dtype
 
-            ax.plot(x, dict_res[(alg, dtype)][comp], label=label,
-                    linestyle=linestyle, linewidth=2, marker='o',
-                    markeredgecolor='none', color=colors[k])
+            plot_func(x, dict_res[(alg, dtype)][comp], label=label,
+                      linestyle=linestyle, linewidth=2, marker='o',
+                      markeredgecolor='none', color=colors[k])
         k += 1
 
-    ax.hold(False)
-    ax.set_xticks(x)
-    ax.set_xticklabels(x)
+    plt.hold(False)
 
 
-def plot_bivalued(x, dict_res1, dict_res2, ax):
-    colors = ['#e41a1c', '#377eb8', '#4daf4a', '#984ea3']
+def test_climate(filename, plot_func, only_draw=False):
 
-    ax.hold(True)
-    k = 0
-    for (alg, dtype) in dict_res1.keys():
-        for comp in dict_res1[(alg, dtype)]:
-            if len(alg) < 4:
-                label = '{0:4s}'.format(alg.upper()) + ' - '
-            else:
-                label = '{0:4s}'.format(alg.upper()) + ' - '
-            if comp:
-                label += '{0:5s} - '.format('comp.')
-                linestyle = '-'
-            else:
-                label += '{0:5s} - '.format('QR')
-                linestyle = '--'
-            label += dtype
-
-            ax.plot(dict_res1[(alg, dtype)][comp], dict_res2[(alg, dtype)][comp], label=label,
-                    linestyle=linestyle, linewidth=2, marker='o',
-                    markeredgecolor='none', color=colors[k])
-        k += 1
-
-    ax.hold(False)
-
-
-def test_jester(only_draw=False):
-
-    test_name = 'test_jester'
-
-    with h5py.File('../data/jester-2.h5', 'r') as f:
-
-        idx = f['data']['int0']
-        values = f['data']['double1']
-        m, n = np.max(idx, axis=1)
-        data = np.zeros((m, n))
-        data[idx[0, :] - 1, idx[1, :] - 1] = values[:]
-
-        nonzero_rows = np.any(data != 0, axis=1)
-        nonzero_cols = np.any(data != 0, axis=0)
-        masked_data = data[nonzero_rows, :]
-        masked_data = masked_data[:, nonzero_cols]
-
-        n = masked_data.shape[1]
-        blockshape = (int(1e4), n)
-
-        q_list = range(n/10, n+1, n/10)
-        shape = (len(q_list), 1)
-
-        if not only_draw:
-            time_vecs = {}
-            err_vecs = {}
-
-            for i, q in enumerate(q_list):
-                res_list = run(masked_data, q, blockshape)
-                for res in res_list:
-                    key = (res['alg'], res['data_type'])
-                    if key not in time_vecs:
-                        time_vecs[key] = {}
-                        time_vecs[key][True] = np.zeros(shape)
-                        time_vecs[key][False] = np.zeros(shape)
-                        err_vecs[key] = {}
-                        err_vecs[key][True] = np.zeros(shape)
-                        err_vecs[key][False] = np.zeros(shape)
-                    time_vecs[key][res['comp']][i] = res['time']
-                    err_vecs[key][res['comp']][i] = res['error']
-
-            with open(test_name, 'w') as f:
-                pickle.dump(time_vecs, f)
-                pickle.dump(err_vecs, f)
-
-        with open(test_name, 'r') as f:
-            time_vecs = pickle.load(f)
-            err_vecs = pickle.load(f)
-
-        plt.figure(figsize=(10, 5))
-        ax = plt.axes()
-        plot(q_list, time_vecs, ax)
-        ax.set_xlabel('Rank of the input matrix')
-        ax.set_ylabel('Time (s)')
-
-        box = ax.get_position()
-        ax.set_position([box.x0, box.y0, box.width * 0.55, box.height])
-
-        # Put a legend to the right of the current axis
-        ax.legend(loc='center left', bbox_to_anchor=(1, 0.5),
-                  prop={'family': 'monospace'})
-
-        plt.savefig(test_name + '_time.pdf')
-
-        plt.figure(figsize=(10, 5))
-        ax = plt.axes()
-        plot(q_list, err_vecs, ax)
-        ax.set_xlabel('Rank of the input matrix')
-        ax.set_ylabel('Relative error')
-
-        box = ax.get_position()
-        ax.set_position([box.x0, box.y0, box.width * 0.55, box.height])
-
-        # Put a legend to the right of the current axis
-        ax.legend(loc='center left', bbox_to_anchor=(1, 0.5),
-                  prop={'family': 'monospace'})
-
-        plt.savefig(test_name + '_error.pdf')
-
-
-def test_climate(only_draw=False):
-
-    test_name = 'test_climate'
-
-    f = scipy.io.loadmat('../data/air_mon.mat')
+    test_name = 'test_' + filename
+    f = scipy.io.loadmat('../data/' + filename + '.mat')
 
     data = f['A']
     n = data.shape[1]
@@ -229,9 +119,11 @@ def test_climate(only_draw=False):
         err_vecs = pickle.load(f)
 
     plt.figure(figsize=(10, 5))
+    plot(q_list, time_vecs, plot_func)
     ax = plt.axes()
-    plot(q_list, time_vecs, ax)
-    ax.set_xlabel('Rank of the input matrix')
+    ax.set_xticks(q_list)
+    ax.set_xticklabels(q_list)
+    ax.set_xlabel('Number of extracted columns')
     ax.set_ylabel('Time (s)')
 
     box = ax.get_position()
@@ -244,23 +136,62 @@ def test_climate(only_draw=False):
     plt.savefig(test_name + '_time.pdf')
 
     plt.figure(figsize=(10, 5))
+    plot(q_list, err_vecs, plt.plot)
     ax = plt.axes()
-    plot(q_list, err_vecs, ax)
-    ax.set_xlabel('Rank of the input matrix')
+    ax.set_xticks(q_list)
+    ax.set_xticklabels(q_list)
+    ax.set_xlabel('Number of extracted columns')
     ax.set_ylabel('Relative error')
 
     box = ax.get_position()
     ax.set_position([box.x0, box.y0, box.width * 0.55, box.height])
 
     # Put a legend to the right of the current axis
-    ax.legend(loc='center left', bbox_to_anchor=(1, 0.5),
-              prop={'family': 'monospace'})
+    # ax.legend(loc='center left', bbox_to_anchor=(1, 0.5),
+    #           prop={'family': 'monospace'})
 
     plt.savefig(test_name + '_error.pdf')
 
 
+def create_url_dataset():
+    """
+    Data downloaded from http://sysnet.ucsd.edu/projects/url/
+    :return:
+    """
+
+    f = scipy.io.loadmat('../data/url.mat')
+    shape_data = np.zeros((2, 121))
+
+    shape = f['Day1'][0, 0][0].shape
+
+    h5f = h5py.File('../data/url.hdf5', 'w')
+    dset = h5f.create_dataset("mat", (shape[1], shape[0]))
+
+    step = 50
+    for start in range(0, shape[0], step):
+        end = min(start + step, shape[0])
+        print(start, end)
+        mat = f['Day1'][0, 0][0][start:end, :]
+        dset[:, start:end] = mat.toarray().T
+
+    # for i, name in enumerate(sorted(f.keys())):
+    #     if name[:3] != 'Day':
+    #         continue
+    #     if f[name][0, 0][0].shape[0] < 2e4:
+    #         print(name)
+    #     shape_data[:, i] = f[name][0, 0][0].shape
+
+
+def test_url(create_dataset=False, only_draw=False):
+    create_url_dataset()
+    # data = f['A']
+    # n = data.shape[1]
+    # blockshape = (int(1e3), n)
+
+
 if __name__ == '__main__':
     plt.switch_backend('TkAgg')  # otherwise, monospace fonts do not work in mac
-    # test_jester(only_draw=True)
-    test_climate(only_draw=False)
+    test_climate('air_mon', plt.plot, only_draw=False)
+    test_climate('air_day', plt.semilogy, only_draw=False)
+    # test_url(create_dataset=True, only_draw=False)
     plt.show()
