@@ -13,27 +13,53 @@ import dask.array as da
 import timeit
 import itertools
 import matplotlib.pyplot as plt
-import rcnmf.snmf
 import pickle
+import rcnmf.snmf
 
 
 def run(m, n, q, ncols, blockshape):
-    print(m, n, q)
+    """
+    Create a low-rank matrix. We then compute its separable NMF
+    decomposition, using the SPA and XRAY algorithms, in-core and
+    out-of-core computations, and the QR and compression variants.
+    :param m: number of rows of the input matrix
+    :type m: int
+    :param n: number of columns of the input matrix
+    :type n: int
+    :param q: rank of the input matrix
+    :type q: int
+    :param ncols: number of columns to use in the decomposition
+    :type ncols: int
+    :param blockshape: shape of the block to use for out-of-core
+    computations.
+    :type blockshape: tuple of int
+    :return: a list of dictionaries where each dictionary contains the
+    following keys:
+    - 'alg': specifying the algorithms for finding the extreme columns
+    - 'comp': boolean specifying if compression was done; otherwise the
+    QR decomposition is used
+    - 'data_type': basetring specifying if the computations were done
+    in-core or out-of-core
+    - 'cols': the delected columns
+    - 'error': the relative error of the decomposition residual
+    - 'time': execution time
+    """
+
     x = np.fabs(np.random.standard_normal(size=(m, q)))
     y = np.fabs(np.random.standard_normal(size=(q, n)))
-    x *= np.arange(1, q+1)
     mat = x.dot(y)
 
     res_list = []
 
-    algorithms = ['SPA', 'xray']
+    algorithms = ['SPA', 'XRAY']
     compress = [False, True]
     data = [mat, da.from_array(mat, blockshape=blockshape)]
 
     for tup in itertools.product(algorithms, compress, data):
 
         t = timeit.default_timer()
-        res = rcnmf.snmf.compute(tup[2], ncols, 'SPA', compress=tup[1])
+        cols, _, error = rcnmf.snmf.compute(tup[2], ncols, 'SPA',
+                                            compress=tup[1])
         t = timeit.default_timer() - t
 
         if isinstance(tup[2], np.ndarray):
@@ -42,7 +68,7 @@ def run(m, n, q, ncols, blockshape):
             dtype = 'out-of-core'
 
         res_dict = {'alg': tup[0], 'comp': tup[1], 'data_type': dtype,
-                    'cols': res[0], 'error': res[2], 'time': t}
+                    'cols': cols, 'error': error, 'time': t}
 
         base_str = 'algorithm: {alg:4s}; compressed: {comp:d}; ' \
                    'type: {data_type:11s}; error {error:.4f}; ' \
@@ -53,13 +79,19 @@ def run(m, n, q, ncols, blockshape):
     return res_list
 
 
-def test1(m, n, only_draw=False):
+def test_rank(m, n, only_draw=False):
+    """
+    Test snmf as the matrix rank changes
+    :param m: number of rows
+    :param n: number of columns
+    :param only_draw: do not run test, only read data from file
+    """
     m = int(m)
     n = int(n)
     q_max = n
     blockshape = (max(m/10, int(1e4)), n)
 
-    test_name = 'test_snmf1_{0:.0e}_{1:.0e}'.format(m, n)
+    test_name = 'test_snmf_rank_{0:.0e}_{1:.0e}'.format(m, n)
 
     q_list = range(q_max/10, q_max+1, q_max/10)
     shape = (len(q_list), 1)
@@ -125,11 +157,18 @@ def test1(m, n, only_draw=False):
     plt.savefig(test_name + '.pdf')
 
 
-def test2(m, func, only_draw=False):
+def test_ncols(m, func, only_draw=False):
+    """
+    Test snmf as the number of columns changes
+    :param m: number of rows
+    :param func: function determining the rank of the input matrix
+        as a function of n
+    :param only_draw: do not run test, only read data from file
+    """
     m = int(m)
     n_max = int(1e3)
 
-    test_name = 'test_snmf2_{0:.0e}'.format(m)
+    test_name = 'test_snmf_ncols_{0:.0e}'.format(m)
 
     n_list = range(n_max/10, n_max+1, n_max/10)
     shape = (len(n_list), 1)
@@ -138,7 +177,7 @@ def test2(m, func, only_draw=False):
         time_vecs = {}
 
         for i, n in enumerate(n_list):
-            blockshape = (max(n/10, int(1e4)), n)
+            blockshape = (max(m/10, int(1e4)), n)
             q = func(n)
             res_list = run(m, n, q, q, blockshape)
             for res in res_list:
@@ -198,7 +237,7 @@ def test2(m, func, only_draw=False):
 
 
 if __name__ == '__main__':
-    plt.switch_backend('TkAgg') #otherwise, monospace fonts do not work in mac
-    test1(1e6, 1e2, only_draw=True)
-    test2(1e5, lambda x: x/10, only_draw=True)
+    plt.switch_backend('TkAgg')  # otherwise, monospace fonts do not work in mac
+    test_rank(1e6, 1e2, only_draw=False)
+    test_ncols(1e5, lambda x: x/10, only_draw=False)
     plt.show()
