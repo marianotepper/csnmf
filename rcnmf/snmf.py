@@ -13,11 +13,16 @@ import dask.array as da
 from rcnmf.third_party import mrnmf
 import rcnmf.compression
 import rcnmf.tsqr
-import timeit
 
 
 def _compute_colnorms(data):
-
+    """
+    Compute the L1 norm for each column
+    :param data: numpy.ndarray
+        Input matrix
+    :return: numpy.ndarray
+        L1 norm for each column
+    """
     if isinstance(data, np.ndarray):
         colnorms = np.sum(np.fabs(data), axis=0)
     elif isinstance(data, da.Array):
@@ -29,7 +34,25 @@ def _compute_colnorms(data):
 
 
 def compute(data, ncols, alg, compress=False, n_power_iter=0):
-    # t = timeit.default_timer()
+    """
+    Compute separable NMF of the input matrix.
+    :param data:  Input matrix
+    :type data: numpy.ndarray
+    :param ncols:  Number of columns to select
+    :type ncols: int
+    :param alg: Choice of algorithm for computing the columns.
+    One of 'SPA' or 'XRAY'.
+    :type alg: basestring
+    :param compress:
+    :param n_power_iter:
+    :return:
+    The selected columns, the right factor of the separable NMF
+    decomposition, and the relative error.
+    :rtype: tuple of:
+     - list of ints
+     - right factor matrix
+     - relative error of the approximation
+    """
     if compress:
         data_comp, _ = rcnmf.compression.compress(data, ncols, n_power_iter)
     else:
@@ -40,22 +63,19 @@ def compute(data, ncols, alg, compress=False, n_power_iter=0):
         else:
             raise TypeError('Cannot compute QR decomposition of matrices '
                             'of type ' + type(data).__name__)
-    # time_phase1 = timeit.default_timer() - t
 
     colnorms = _compute_colnorms(data)
 
     if isinstance(data, da.Array):
         data_comp = np.array(data_comp)
+        colnorms = np.array(colnorms)
     elif isinstance(data, np.ndarray):
         pass
     else:
         raise TypeError('Cannot convert matrices of type ' +
                         type(data).__name__)
 
-    # t = timeit.default_timer()
-    res = mrnmf.nmf(data_comp, colnorms, alg, ncols)
-    # time_phase2 = timeit.default_timer() - t
+    cols = mrnmf.select_columns(data_comp, colnorms, alg, ncols)
+    mat_h, error = mrnmf.nnls_frob(data_comp, cols)
 
-    # base_str = 'Time for phase 1: {0:.2f}. Time for phase 2: {1:.2f}'
-    # print(base_str.format(time_phase1, time_phase2))
-    return res#, time_phase1, time_phase2
+    return cols, mat_h, error
