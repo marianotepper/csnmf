@@ -25,32 +25,15 @@ def compression_vs_qr(m, n, q):
 
     x = np.random.standard_normal(size=(m, n))
 
-    blockshape = (select_blocksize(m), n)
-    data = from_array(x, blockshape=blockshape)
+    t = timeit.default_timer()
+    randcomp.compress(x, q, n_power_iter=0)
+    tim_comp = timeit.default_timer() - t
 
     t = timeit.default_timer()
-    data_comp, _ = randcomp.compress(data, q, n_power_iter=0)
-    np.array(data_comp)
-    tid_comp = timeit.default_timer() - t
+    np.linalg.qr(x)
+    tim_qr = timeit.default_timer() - t
 
-    t = timeit.default_timer()
-    rcnmf.tsqr.qr(data)
-    np.array(data_comp)
-    tid_qr = timeit.default_timer() - t
-
-    if n < 1e4:
-        t = timeit.default_timer()
-        randcomp.compress(x, q, n_power_iter=0)
-        tim_comp = timeit.default_timer() - t
-
-        t = timeit.default_timer()
-        np.linalg.qr(x)
-        tim_qr = timeit.default_timer() - t
-    else:
-        tim_comp = 0
-        tim_qr = 0
-
-    return tid_comp, tid_qr, tim_comp, tim_qr
+    return tim_comp, tim_qr
 
 
 def test_compression_vs_qr(only_draw=False):
@@ -63,8 +46,6 @@ def test_compression_vs_qr(only_draw=False):
 
     if not only_draw:
         shape = (len(sizes_n), repetitions)
-        times_in_disk_comp = np.zeros(shape)
-        times_in_disk_qr = np.zeros(shape)
         times_in_memory_comp = np.zeros(shape)
         times_in_memory_qr = np.zeros(shape)
 
@@ -73,26 +54,18 @@ def test_compression_vs_qr(only_draw=False):
             for k in range(repetitions):
                 q = n/10
                 res = compression_vs_qr(m, n, q)
-                times_in_disk_comp[i, k] = res[0]
-                times_in_disk_qr[i, k] = res[1]
-                times_in_memory_comp[i, k] = res[2]
-                times_in_memory_qr[i, k] = res[3]
+                times_in_memory_comp[i, k] = res[0]
+                times_in_memory_qr[i, k] = res[1]
 
         if repetitions > 0:
-            times_in_disk_comp = np.mean(times_in_disk_comp, axis=1)
-            times_in_disk_qr = np.mean(times_in_disk_qr, axis=1)
             times_in_memory_comp = np.mean(times_in_memory_comp, axis=1)
             times_in_memory_qr = np.mean(times_in_memory_qr, axis=1)
 
         with open('test_compression_vs_qr', 'w') as f:
-            np.save(f, times_in_disk_comp)
-            np.save(f, times_in_disk_qr)
             np.save(f, times_in_memory_comp)
             np.save(f, times_in_memory_qr)
 
     with open('test_compression_vs_qr', 'r') as f:
-        times_in_disk_comp = np.load(f)
-        times_in_disk_qr = np.load(f)
         times_in_memory_comp = np.load(f)
         times_in_memory_qr = np.load(f)
 
@@ -121,27 +94,6 @@ def test_compression_vs_qr(only_draw=False):
     plt.subplots_adjust(bottom=0.15)
 
     plt.savefig('test_compression_vs_qr_ic.pdf')
-
-    # plt.figure()
-    # ax1 = plt.axes()
-    #
-    # ax1.hold(True)
-    # ax1.loglog(sizes_n, times_in_disk_comp, label='Out-of-core compression',
-    #            marker='o', markeredgecolor=colors[0], linewidth=2,
-    #            linestyle='-', color=colors[0])
-    # ax1.loglog(sizes_n, times_in_disk_qr, label='Out-of-core QR', marker='o',
-    #            markeredgecolor=colors[1], linewidth=2, linestyle='--',
-    #            color=colors[1])
-    # ax1.hold(False)
-    #
-    # ax1.set_xticks(sizes_n)
-    # ax1.set_xticklabels(['{:.1e}'.format(z) for z in sizes_n], rotation=45)
-    # ax1.set_xlabel(r'Number $m$ of columns')
-    # ax1.set_ylabel('Time (s)')
-    # ax1.legend(loc='upper left')
-    # plt.subplots_adjust(bottom=0.15)
-    #
-    # plt.savefig('test_compression_vs_qr_ooc.pdf')
 
 
 def size_timing(m, n, q):
