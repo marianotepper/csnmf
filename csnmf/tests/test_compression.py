@@ -10,7 +10,6 @@
 from __future__ import absolute_import, print_function
 import numpy as np
 from dask.array import from_array
-from dask.array.into import discover # required by dask.array
 import timeit
 import matplotlib.pyplot as plt
 import csnmf.compression as randcomp
