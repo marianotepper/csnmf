@@ -14,12 +14,25 @@ from dask.dot import dot_graph
 import rcnmf.tsqr
 
 
-def run():
-    mat = np.random.rand(1000, 20)
-    blockshape = (200, 20)
-    data = da.from_array(mat, blockshape=blockshape, name='A')
+def regular_blocks():
+    m, n = 1000, 20
+    mat = np.random.rand(m, n)
+    blockshape = (200, n)
+    return mat, da.from_array(mat, blockshape=blockshape, name='A')
 
-    q, r = rcnmf.tsqr.tsqr(data)
+
+def irregular_blocks():
+    m, n = 1000, 20
+    mat = np.random.rand(m, n)
+    blockdims = [(200, 100, 300, 50, 150, 200), (1,)]
+    return mat, da.from_array(mat, blockdims=blockdims, name='A')
+
+
+def test_tsqr(create_func):
+    mat, data = create_func()
+    n = mat.shape[1]
+
+    q, r = rcnmf.tsqr.qr(data)
 
     dot_graph(q.dask, filename='q')
     dot_graph(r.dask, filename='r')
@@ -31,6 +44,10 @@ def run():
     print r.shape
 
     print np.linalg.norm(mat - np.dot(q, r))
+
+    assert np.allclose(mat, np.dot(q, r))
+    assert np.allclose(np.eye(n, n), np.dot(q.T, q))
+    assert np.all(r == np.triu(r))
 
     plt.figure()
     plt.subplot(2, 4, 1)
@@ -50,7 +67,8 @@ def run():
     plt.spy(r)
     plt.title('Nonzeros in $\mathbf{R}$')
 
-    plt.show()
 
 if __name__ == '__main__':
-    run()
+    test_tsqr(regular_blocks)
+    # test_tsqr(irregular_blocks)
+    plt.show()
