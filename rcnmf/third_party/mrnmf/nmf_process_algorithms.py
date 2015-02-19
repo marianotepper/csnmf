@@ -21,47 +21,52 @@ import numpy as np
 from scipy import optimize
 
 
-def col2norm(X):
+def _col2norm(x):
     """ Compute all column 2-norms of a matrix. """
-    return np.sum(X**2, axis=0)
+    return np.sum(x**2, axis=0)
 
 
-def spa(X, r):
-    """ Successive projection algorithm (SPA) for NMF.  This algorithm
+def spa(x, r):
+    """
+    Successive projection algorithm (SPA) for NMF.  This algorithm
     computes the column indices.
-    Args:
-        X: The data matrix.
-        r: The target separation rank.
-    Returns:
-        A list of r columns chosen by SPA.
+    :param x: The data matrix.
+    :type x: numpy.ndarray
+    :param r: The target separation rank.
+    :type r: int
+    :return: A list of r columns chosen by SPA.
+    :rtype: list of int
     """
     cols = []
-    m, n = X.shape
+    m, n = x.shape
     for _ in xrange(r):
-        col_norms = col2norm(X)
+        col_norms = _col2norm(x)
         col_ind = np.argmax(col_norms)
         cols.append(col_ind)
-        col = np.atleast_2d(X[:, col_ind]) #col is a row vector
-        X = np.dot((np.eye(m) - np.dot(col.T, col) / col_norms[col_ind]), X)
+        col = np.atleast_2d(x[:, col_ind]) #col is a row vector
+        x = np.dot((np.eye(m) - np.dot(col.T, col) / col_norms[col_ind]), x)
 
     return cols
 
 
-def xray(X, r):
-    """ X-ray algorithm for NMF.  This algorithm computes the column
+def xray(x, r):
+    """
+    X-ray algorithm for NMF.  This algorithm computes the column
     indices.
-    Args:
-        X: The data matrix.
-        r: The target separation rank.
-    Returns:
-        A list of r columns chosen by X-ray.
+    :param x: The data matrix.
+    :type x: numpy.ndarray
+    :param r: The target separation rank.
+    :type r: int
+    :return: A list of r columns chosen by X-ray.
+    :rtype: list of int
     """
     cols = []
-    R = np.copy(X)
+    R = np.copy(x)
+    colnorm_X = _col2norm(x)
     while len(cols) < r:
         # Loop until we choose a column that has not been selected.
         while True:
-            scores = col2norm(np.dot(R.T, X)) / col2norm(X)
+            scores = _col2norm(np.dot(R.T, x)) / colnorm_X
             scores[cols] = -1   # IMPORTANT
             best_col = np.argmax(scores)
             if best_col in cols:
@@ -69,91 +74,60 @@ def xray(X, r):
                 continue
             else:
                 cols.append(best_col)
-                H, rel_res = nnls_frob(X, cols)
-                R = X - np.dot(X[:, cols] , H)
+                H, rel_res = nnls_frob(x, cols)
+                R = x - np.dot(x[:, cols] , H)
                 break
     return cols
 
 
-def gp_cols(data, r):
-    """ X-ray algorithm for NMF.  This algorithm computes the column
-    indices.
-    Args:
-        data: The matrix G * X, where X is the nonnegative data matrix
-            and G is a matrix with Gaussian i.i.d. random entries.
-        r: The target separation rank.
-    Returns:
-        A list of r columns chosen by Gaussian projection.
+def nnls_frob(x, cols):
     """
-    votes = {}
-    for row in data:
-        min_ind = np.argmin(row)
-        max_ind = np.argmax(row)
-        for ind in [min_ind, max_ind]:
-            if ind not in votes:
-                votes[ind] = 1
-            else:
-                votes[ind] += 1
-
-    votes = sorted(votes.items(), key=lambda x: x[1], reverse=True)
-    return [x[0] for x in votes][0:r]
-
-
-def nnls_frob(X, cols):
-    """ Compute H, the coefficient matrix, by nonnegative least squares
+    Compute H, the coefficient matrix, by nonnegative least squares
     to minimize the Frobenius norm.  Given the data matrix X and the
     columns cols, H is
              \arg\min_{Y \ge 0} \| X - X(:, cols) H \|_F.
-    Args:
-        X: The data matrix.
-        cols: The column indices.
-    Returns:
-        The matrix H and the relative resiual.
+    :param X: The data matrix.
+    :type X: numpy.ndarray
+    :param cols: The column indices.
+    :type cols: list of int
+    :return: The matrix H and the relative residual.
     """
 
-    ncols = X.shape[1]
+    ncols = x.shape[1]
+    x_sel = x[:, cols]
     H = np.zeros((len(cols), ncols))
     for i in xrange(ncols):
-        sol, res = optimize.nnls(X[:, cols], X[:, i])
+        sol, res = optimize.nnls(x_sel, x[:, i])
         H[:, i] = sol
-    rel_res = np.linalg.norm(X - np.dot(X[:, cols], H), 'fro')
-    rel_res /= np.linalg.norm(X, 'fro')
+    rel_res = np.linalg.norm(x - np.dot(x_sel, H), 'fro')
+    rel_res /= np.linalg.norm(x, 'fro')
     return H, rel_res
 
 
-def nmf(data, colnorms, alg, r):
+def select_columns(data, colnorms, alg, r):
     """ Compute an approximate separable NMF of the matrix data.  By
     compute, we mean choose r columns and a best fitting coefficient
     matrix H.  The r columns are selected by the 'alg' option, which
-    is one of 'SPA', 'xray', or 'GP'.  The coefficient matrix H is the
-    one that produces the smallest Frobenius norm error.  The
-    coefficient matrix H and residual only make sense when the
-    algorithm is 'SPA' or 'xray'.  However, given the columns selected
-    by 'GP', you can call NNLSFrob with the QR data to get H and the
-    relative residual.
+    is one of 'SPA' or 'XRAY'.  The coefficient matrix H is the
+    one that produces the smallest Frobenius norm error.
 
-    Args:
-        data: The data matrix.
-        colnorms: The column norms.
-        alg: Choice of algorithm for computing the columns.  One of 'SPA',
-            'xray', or 'GP'.
-        r: The target separation rank.
-    Returns:
-        The selected columns, the matrix H, and the relative residual.
+    :param data: The data matrix.
+    :type data: numpy.ndarray
+    :param colnorms: The column norms.
+    :param alg: Choice of algorithm for computing the columns.  One of
+    'SPA' or 'XRAY'.
+    :type alg: string
+    :param r: The target separation rank.
+    :type r: int
+    :return The selected columns, the matrix H, and the relative residual.
     """
 
-    if alg == 'xray':
+    if alg == 'XRAY':
         cols = xray(data, r)
+    elif alg == 'SPA':
+        mat_norm = data / (colnorms + np.finfo(np.float).eps)
+        cols = spa(mat_norm, r)
     else:
-        colinv = np.linalg.pinv(np.diag(colnorms))
-        A = np.dot(data, colinv)
+        raise Exception('Unknown algorithm: %s' % str(alg))
 
-        if alg == 'SPA':
-            cols = spa(A, r)
-        elif alg == 'GP':
-            cols = gp_cols(data, r)
-        else:
-            raise Exception('Unknown algorithm: %s' % str(alg))
-
-    H, rel_res = nnls_frob(data, cols)
-    return cols, H, rel_res
+    return cols
