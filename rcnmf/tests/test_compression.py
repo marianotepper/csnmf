@@ -10,18 +10,16 @@
 from __future__ import absolute_import, print_function
 import numpy as np
 from dask.array import from_array
-from into import into
 from dask.array.into import discover # required by dask.array
 import timeit
-import os
 import matplotlib.pyplot as plt
-import tempfile
 import rcnmf.compression as randcomp
 import rcnmf.tsqr
 
 
 def select_blocksize(k):
     return min(k/10, int(1e4))
+
 
 def compression_vs_qr(m, n, q):
 
@@ -40,22 +38,19 @@ def compression_vs_qr(m, n, q):
     np.array(data_comp)
     tid_qr = timeit.default_timer() - t
 
-    t = timeit.default_timer()
-    randcomp.compress(x, q, n_power_iter=0)
-    tim_comp = timeit.default_timer() - t
+    if n < 1e4:
+        t = timeit.default_timer()
+        randcomp.compress(x, q, n_power_iter=0)
+        tim_comp = timeit.default_timer() - t
 
-    t = timeit.default_timer()
-    np.linalg.qr(x)
-    tim_qr = timeit.default_timer() - t
+        t = timeit.default_timer()
+        np.linalg.qr(x)
+        tim_qr = timeit.default_timer() - t
+    else:
+        tim_comp = 0
+        tim_qr = 0
 
-    # temp_file = tempfile.NamedTemporaryFile(suffix='.hdf5')
-    # filename = temp_file.name
-    # into(filename + '::/X', x)
-    # hdf5size = float(os.path.getsize(filename))
-    # temp_file.close()
-    hdf5size = 0
-
-    return hdf5size, tid_comp, tid_qr, tim_comp, tim_qr
+    return tid_comp, tid_qr, tim_comp, tim_qr
 
 
 def test_compression_vs_qr(only_draw=False):
@@ -64,7 +59,6 @@ def test_compression_vs_qr(only_draw=False):
     sizes_n = map(int, [1e2, 3e2, 5e2, 7.5e2,
                         1e3, 3e3, 5e3, 7.5e3])
 
-    q = 10
     repetitions = 1
 
     if not only_draw:
@@ -73,79 +67,81 @@ def test_compression_vs_qr(only_draw=False):
         times_in_disk_qr = np.zeros(shape)
         times_in_memory_comp = np.zeros(shape)
         times_in_memory_qr = np.zeros(shape)
-        # hdf5sizes = np.zeros((1, len(sizes_n)))
 
         for i, n in enumerate(sizes_n):
             print('iteration: {0}, size: {1}, {2}'.format(i, m, n))
             for k in range(repetitions):
+                q = n/10
                 res = compression_vs_qr(m, n, q)
-                # hdf5sizes[0, i] = res[0]
-                times_in_disk_comp[i, k] = res[1]
-                times_in_disk_qr[i, k] = res[2]
-                times_in_memory_comp[i, k] = res[3]
-                times_in_memory_qr[i, k] = res[4]
+                times_in_disk_comp[i, k] = res[0]
+                times_in_disk_qr[i, k] = res[1]
+                times_in_memory_comp[i, k] = res[2]
+                times_in_memory_qr[i, k] = res[3]
 
         if repetitions > 0:
             times_in_disk_comp = np.mean(times_in_disk_comp, axis=1)
             times_in_disk_qr = np.mean(times_in_disk_qr, axis=1)
             times_in_memory_comp = np.mean(times_in_memory_comp, axis=1)
             times_in_memory_qr = np.mean(times_in_memory_qr, axis=1)
-        # hdf5sizes /= 2**30
 
-        with open('test_compression_ooc_result', 'w') as f:
+        with open('test_compression_vs_qr', 'w') as f:
             np.save(f, times_in_disk_comp)
             np.save(f, times_in_disk_qr)
             np.save(f, times_in_memory_comp)
             np.save(f, times_in_memory_qr)
-            # np.save(f, hdf5sizes)
 
-    with open('test_compression_ooc_result', 'r') as f:
+    with open('test_compression_vs_qr', 'r') as f:
         times_in_disk_comp = np.load(f)
         times_in_disk_qr = np.load(f)
         times_in_memory_comp = np.load(f)
         times_in_memory_qr = np.load(f)
-        # hdf5sizes = np.load(f)
 
     colors = ['#e41a1c', '#377eb8']
 
     plt.figure()
     ax1 = plt.axes()
 
+    sizes_n_crop = [s for s in sizes_n if s < 1e4]
+    idx = [i for i, s in enumerate(sizes_n) if s < 1e4]
     ax1.hold(True)
-    ax1.loglog(sizes_n, times_in_memory_comp, label='In-core compression',
-               marker='o', markeredgecolor=colors[0], linewidth=2,
+    ax1.loglog(sizes_n_crop, times_in_memory_comp[idx],
+               label='In-core compression', marker='o',
+               markeredgecolor=colors[0], linewidth=2,
                linestyle='-', color=colors[0])
-    ax1.loglog(sizes_n, times_in_memory_qr, label='In-core QR', marker='o',
-               markeredgecolor=colors[0], linewidth=2, linestyle='--',
-               color=colors[0])
-    ax1.loglog(sizes_n, times_in_disk_comp, label='Out-of-core compression',
+    ax1.loglog(sizes_n_crop, times_in_memory_qr[idx], label='In-core QR',
                marker='o', markeredgecolor=colors[1], linewidth=2,
-               linestyle='-', color=colors[1])
-    ax1.loglog(sizes_n, times_in_disk_qr, label='Out-of-core QR', marker='o',
-               markeredgecolor=colors[1], linewidth=2, linestyle='--',
-               color=colors[1])
+               linestyle='--', color=colors[1])
     ax1.hold(False)
-    ax1.set_xlim(4e3, max(sizes_n) + 4e3)
 
-    ax1.set_xticks(sizes_n)
-    ax1.set_xticklabels(['{:.1e}'.format(z) for z in sizes_n], rotation=45)
+    ax1.set_xticks(sizes_n_crop)
+    ax1.set_xticklabels(['{:.1e}'.format(z) for z in sizes_n_crop], rotation=45)
     ax1.set_xlabel(r'Number $m$ of columns')
     ax1.set_ylabel('Time (s)')
-
     ax1.legend(loc='upper left')
-
-    # ax2 = ax1.twiny()
-    # ax2.loglog(sizes_m, times_in_memory_comp, linewidth=0)
-    #
-    # ax2.set_xlim(4e3, max(sizes_m) + 4e3)
-    #
-    # ax2.set_xticks(sizes_m)
-    # ax2.set_xticklabels(['{:.2f}'.format(z) for z in hdf5sizes.tolist()[0]])
-    # ax2.set_xlabel('Size of the hdf5 file (GB)')
-
     plt.subplots_adjust(bottom=0.15)
 
-    plt.savefig('test_compression_vs_qr.pdf')
+    plt.savefig('test_compression_vs_qr_ic.pdf')
+
+    # plt.figure()
+    # ax1 = plt.axes()
+    #
+    # ax1.hold(True)
+    # ax1.loglog(sizes_n, times_in_disk_comp, label='Out-of-core compression',
+    #            marker='o', markeredgecolor=colors[0], linewidth=2,
+    #            linestyle='-', color=colors[0])
+    # ax1.loglog(sizes_n, times_in_disk_qr, label='Out-of-core QR', marker='o',
+    #            markeredgecolor=colors[1], linewidth=2, linestyle='--',
+    #            color=colors[1])
+    # ax1.hold(False)
+    #
+    # ax1.set_xticks(sizes_n)
+    # ax1.set_xticklabels(['{:.1e}'.format(z) for z in sizes_n], rotation=45)
+    # ax1.set_xlabel(r'Number $m$ of columns')
+    # ax1.set_ylabel('Time (s)')
+    # ax1.legend(loc='upper left')
+    # plt.subplots_adjust(bottom=0.15)
+    #
+    # plt.savefig('test_compression_vs_qr_ooc.pdf')
 
 
 def size_timing(m, n, q):
@@ -164,14 +160,7 @@ def size_timing(m, n, q):
     randcomp.compress(x, q, n_power_iter=0)
     tim = timeit.default_timer() - t
 
-    # temp_file = tempfile.NamedTemporaryFile(suffix='.hdf5')
-    # filename = temp_file.name
-    # into(filename + '::/X', x)
-    # hdf5size = float(os.path.getsize(filename))
-    # temp_file.close()
-    hdf5size = 0
-
-    return hdf5size, tid, tim
+    return tid, tim
 
 
 def test_compression_ic_vs_ooc(only_draw=False):
@@ -188,63 +177,50 @@ def test_compression_ic_vs_ooc(only_draw=False):
         shape = (len(sizes_m), repetitions)
         times_in_disk = np.zeros(shape)
         times_in_memory = np.zeros(shape)
-        # hdf5sizes = np.zeros((1, len(sizes_m)))
 
         for i, s in enumerate(sizes_m):
             print('iteration: {0}, size: {1}, {2}'.format(i, s, n))
             for k in range(repetitions):
                 res = size_timing(s, n, q)
-                # hdf5sizes[0, i] = res[0]
-                times_in_disk[i, k] = res[1]
-                times_in_memory[i, k] = res[2]
+                times_in_disk[i, k] = res[0]
+                times_in_memory[i, k] = res[1]
 
         if repetitions > 0:
             times_in_disk = np.mean(times_in_disk, axis=1)
             times_in_memory = np.mean(times_in_memory, axis=1)
-        # hdf5sizes /= 2**30
 
-        with open('test_compression_ooc_result', 'w') as f:
+        with open('test_compression_ic_vs_ooc', 'w') as f:
             np.save(f, times_in_disk)
             np.save(f, times_in_memory)
-            # np.save(f, hdf5sizes)
 
-    with open('test_compression_ooc_result', 'r') as f:
+    with open('test_compression_ic_vs_ooc', 'r') as f:
         times_in_disk = np.load(f)
         times_in_memory = np.load(f)
-        # hdf5sizes = np.load(f)
+
+    colors = ['#e41a1c', '#377eb8']
 
     plt.figure()
     ax1 = plt.axes()
 
     ax1.hold(True)
-    ax1.loglog(sizes_m, times_in_memory, label='In-core', marker='o',
-               markeredgecolor='b', linewidth=2, linestyle='-', color='b')
-    ax1.loglog(sizes_m, times_in_disk, label='Out-of-core', marker='o',
-               markeredgecolor='r', linewidth=2, linestyle='-', color='r')
+    ax1.loglog(sizes_m, times_in_memory, label='In-core compression',
+               marker='o', markeredgecolor=colors[0], linewidth=2,
+               linestyle='-', color=colors[0])
+    ax1.loglog(sizes_m, times_in_disk, label='Out-of-core compression',
+               marker='o', markeredgecolor=colors[1], linewidth=2,
+               linestyle='--', color=colors[1])
     ax1.hold(False)
-    ax1.set_xlim(4e3, max(sizes_m) + 4e3)
 
     ax1.set_xticks(sizes_m)
     ax1.set_xticklabels(['{:.1e}'.format(z) for z in sizes_m], rotation=45)
     ax1.set_xlabel(r'Number $m$ of rows')
     ax1.set_ylabel('Time (s)')
-
     ax1.legend(loc='upper left')
-
-    # ax2 = ax1.twiny()
-    # ax2.loglog(sizes_m, times_in_memory, linewidth=0)
-    #
-    # ax2.set_xlim(4e3, max(sizes_m) + 4e3)
-    #
-    # ax2.set_xticks(sizes_m)
-    # ax2.set_xticklabels(['{:.2f}'.format(z) for z in hdf5sizes.tolist()[0]])
-    # ax2.set_xlabel('Size of the hdf5 file (GB)')
-
     plt.subplots_adjust(bottom=0.15)
 
     plt.savefig('test_compression_ic_vs_ooc.pdf')
 
 if __name__ == '__main__':
-    # test_compression_ic_vs_ooc(only_draw=False)
-    test_compression_vs_qr(only_draw=False)
+    test_compression_ic_vs_ooc(only_draw=True)
+    test_compression_vs_qr(only_draw=True)
     plt.show()
