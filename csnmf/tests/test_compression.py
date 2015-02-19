@@ -13,8 +13,8 @@ from dask.array import from_array
 from dask.array.into import discover # required by dask.array
 import timeit
 import matplotlib.pyplot as plt
-import rcnmf.compression as randcomp
-import rcnmf.tsqr
+import csnmf.compression as randcomp
+import csnmf.tsqr
 
 
 def select_blocksize(k):

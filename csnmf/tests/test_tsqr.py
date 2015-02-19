@@ -11,7 +11,7 @@ import numpy as np
 import dask.array as da
 import matplotlib.pyplot as plt
 from dask.dot import dot_graph
-import rcnmf.tsqr
+import csnmf.tsqr
 
 
 def regular_blocks():
@@ -32,7 +32,7 @@ def test_tsqr(create_func):
     mat, data = create_func()
     n = mat.shape[1]
 
-    q, r = rcnmf.tsqr.qr(data)
+    q, r = csnmf.tsqr.qr(data)
 
     dot_graph(q.dask, filename='q')
     dot_graph(r.dask, filename='r')

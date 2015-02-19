@@ -16,7 +16,7 @@ import matplotlib.pyplot as plt
 import pickle
 import scipy.io
 import h5py
-import rcnmf.snmf
+import csnmf.snmf
 
 
 def run(mat, ncols, blockshape):
@@ -29,7 +29,7 @@ def run(mat, ncols, blockshape):
     for tup in itertools.product(algorithms, compress, data):
 
         t = timeit.default_timer()
-        cols, mat_h, error = rcnmf.snmf.compute(tup[2], ncols, 'SPA',
+        cols, mat_h, error = csnmf.snmf.compute(tup[2], ncols, 'SPA',
                                             compress=tup[1])
         t = timeit.default_timer() - t
 

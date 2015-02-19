@@ -14,7 +14,7 @@ import timeit
 import itertools
 import matplotlib.pyplot as plt
 import pickle
-import rcnmf.snmf
+import csnmf.snmf
 
 
 def run(m, n, q, ncols, blockshape):
@@ -58,7 +58,7 @@ def run(m, n, q, ncols, blockshape):
     for tup in itertools.product(algorithms, compress, data):
 
         t = timeit.default_timer()
-        cols, _, error = rcnmf.snmf.compute(tup[2], ncols, 'SPA',
+        cols, _, error = csnmf.snmf.compute(tup[2], ncols, 'SPA',
                                             compress=tup[1])
         t = timeit.default_timer() - t
 

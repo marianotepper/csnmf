@@ -10,7 +10,7 @@
 from __future__ import absolute_import, print_function
 import numpy as np
 import dask.array as da
-import rcnmf.tsqr
+import csnmf.tsqr
 
 
 def compression_level(n, q):
@@ -38,7 +38,7 @@ def compress(data, q, n_power_iter=0):
     elif isinstance(data, da.Array):
         omega = da.random.standard_normal(size=(n, comp_level),
                                           blockdims=(data.blockdims[1], (1,)))
-        qr = rcnmf.tsqr.qr
+        qr = csnmf.tsqr.qr
     else:
         raise TypeError('Cannot compress data of type ' + type(data).__name__)
 

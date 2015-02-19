@@ -10,9 +10,9 @@
 from __future__ import absolute_import, print_function
 import numpy as np
 import dask.array as da
-from rcnmf.third_party import mrnmf
-import rcnmf.compression
-import rcnmf.tsqr
+from csnmf.third_party import mrnmf
+import csnmf.compression
+import csnmf.tsqr
 
 
 def _compute_colnorms(data):
@@ -54,10 +54,10 @@ def compute(data, ncols, alg, compress=False, n_power_iter=0):
      - relative error of the approximation
     """
     if compress:
-        data_comp, _ = rcnmf.compression.compress(data, ncols, n_power_iter)
+        data_comp, _ = csnmf.compression.compress(data, ncols, n_power_iter)
     else:
         if isinstance(data, da.Array):
-            _, data_comp = rcnmf.tsqr.qr(data)
+            _, data_comp = csnmf.tsqr.qr(data)
         elif isinstance(data, np.ndarray):
             _, data_comp = np.linalg.qr(data)
         else:
