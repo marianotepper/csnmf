@@ -37,8 +37,7 @@ def compress(data, q, n_power_iter=0):
         qr = np.linalg.qr
     elif isinstance(data, da.Array):
         omega = da.random.standard_normal(size=(n, comp_level),
-                                          blockshape=(data.blockdims[1][0],
-                                                      comp_level))
+                                          blockdims=(data.blockdims[1], (1,)))
         qr = rcnmf.tsqr.qr
     else:
         raise TypeError('Cannot compress data of type ' + type(data).__name__)
