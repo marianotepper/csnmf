@@ -6,13 +6,21 @@
    which can be found in the LICENSE file in the root directory, or at
    http://opensource.org/licenses/BSD-3-Clause
 """
-
+from __future__ import absolute_import
 import numpy as np
 from itertools import count, product
 import dask.array as da
 import operator
 
 names = ('tsqr_%d' % i for i in count(1))
+
+
+def _cumsum_blocks(it):
+    total = 0
+    for x in it:
+        total_previous = total
+        total += x
+        yield (total_previous, total)
 
 
 def qr(data, name=None):
@@ -25,14 +33,17 @@ def qr(data, name=None):
     IEEE International Conference on Big Data, 2013.
     http://arxiv.org/abs/1301.1071
 
-    :param data: dask array object
+    :param data:
     Shape of the blocks that will be used to compute
     the blocked QR decomposition. We have the restrictions:
     - blockshape[1] == data.shape[1]
     - blockshape[0]*data.shape[1] must fit in main memory
-    :return: tuple of dask.array.Array
-    First and second tuple elements correspond to Q and R, of the
-    QR decomposition.
+    :type data: dask.array.Array
+    :param name: Name of array in dask
+    :type name: basestring
+    :return: First and second tuple elements correspond to Q and R, of
+    the QR decomposition.
+    :rtype: tuple of dask.array.Array
     """
     if not (data.ndim == 2 and                    # Is a matrix
             len(data.blockdims[1]) == 1):         # Only one column block
@@ -52,15 +63,17 @@ def qr(data, name=None):
                              numblocks={data.name: numblocks})
     # qr[0]
     name_q_st1 = prefix + 'Q_st1'
-    dsk_q_st1 = {(name_q_st1, i, 0): (operator.getitem, (name_qr_st1, i, 0), 0)
-                 for i in xrange(numblocks[0])}
+    dsk_q_st1 = dict(((name_q_st1, i, 0),
+                      (operator.getitem, (name_qr_st1, i, 0), 0))
+                     for i in range(numblocks[0]))
     # qr[1]
     name_r_st1 = prefix + 'R_st1'
-    dsk_r_st1 = {(name_r_st1, i, 0): (operator.getitem, (name_qr_st1, i, 0), 1)
-                 for i in xrange(numblocks[0])}
+    dsk_r_st1 = dict(((name_r_st1, i, 0),
+                      (operator.getitem, (name_qr_st1, i, 0), 1))
+                     for i in range(numblocks[0]))
 
     # Stacking for in-core QR computation
-    to_stack = [(name_r_st1, i, 0) for i in xrange(numblocks[0])]
+    to_stack = [(name_r_st1, i, 0) for i in range(numblocks[0])]
     name_r_st1_stacked = prefix + 'R_st1_stacked'
     dsk_r_st1_stacked = {(name_r_st1_stacked, 0, 0): (np.vstack,
                                                       (tuple, to_stack))}
@@ -73,12 +86,13 @@ def qr(data, name=None):
     name_q_st2_aux = prefix + 'Q_st2_aux'
     dsk_q_st2_aux = {(name_q_st2_aux, 0, 0): (operator.getitem,
                                               (name_qr_st2, 0, 0), 0)}
+    q2_block_sizes = [min(e, n) for e in data.blockdims[0]]
+    block_slices = [(slice(e[0], e[1]), slice(0, n))
+                    for e in _cumsum_blocks(q2_block_sizes)]
     name_q_st2 = prefix + 'Q_st2'
-    dsk_q_st2 = dict(((name_q_st2,) + ijk,
-                      (operator.getitem, (name_q_st2_aux, 0, 0),
-                       tuple(slice(i * d, (i + 1) * d) for i, d in
-                             zip(ijk, (n, n)))))
-                     for ijk in product(*map(range, numblocks)))
+    dsk_q_st2 = dict(((name_q_st2,) + (i, 0),
+                      (operator.getitem, (name_q_st2_aux, 0, 0), b))
+                     for i, b in enumerate(block_slices))
     # qr[1]
     name_r_st2 = prefix + 'R'
     dsk_r_st2 = {(name_r_st2, 0, 0): (operator.getitem, (name_qr_st2, 0, 0), 1)}
