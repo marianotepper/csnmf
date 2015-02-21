@@ -64,7 +64,7 @@ def compute(data, ncols, alg, compress=False, n_power_iter=0):
             raise TypeError('Cannot compute QR decomposition of matrices '
                             'of type ' + type(data).__name__)
 
-    colnorms = _compute_colnorms(data)
+    colnorms = _compute_colnorms(data_comp)
 
     if isinstance(data, da.Array):
         data_comp = np.array(data_comp)
