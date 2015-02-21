@@ -44,7 +44,7 @@ def spa(x, r):
         col_ind = np.argmax(col_norms)
         cols.append(col_ind)
         col = np.atleast_2d(x[:, col_ind]) #col is a row vector
-        x = np.dot((np.eye(m) - np.dot(col.T, col) / col_norms[col_ind]), x)
+        x = np.dot(np.eye(m) - np.dot(col.T, col) / col_norms[col_ind], x)
 
     return cols
 
@@ -125,8 +125,7 @@ def select_columns(data, colnorms, alg, r):
     if alg == 'XRAY':
         cols = xray(data, r)
     elif alg == 'SPA':
-        mat_norm = data / (colnorms + np.finfo(np.float).eps)
-        cols = spa(mat_norm, r)
+        cols = spa(data / colnorms, r)
     else:
         raise Exception('Unknown algorithm: %s' % str(alg))
 
