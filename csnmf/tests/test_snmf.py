@@ -53,26 +53,25 @@ def run(m, n, q, ncols, blockshape):
 
     algorithms = ['SPA', 'XRAY']
     compress = [False, True]
-    data = [mat, da.from_array(mat, blockshape=blockshape)]
+    data_list = [mat, da.from_array(mat, blockshape=blockshape)]
 
-    for tup in itertools.product(algorithms, compress, data):
+    base_str = 'algorithm: {alg:4s}; compressed: {comp:d}; ' \
+               'type: {data_type:11s}; error {error:.4f}; time {time:.2f}'
+
+    for alg, comp, data in itertools.product(algorithms, compress, data_list):
 
         t = timeit.default_timer()
-        cols, _, error = csnmf.snmf.compute(tup[2], ncols, 'SPA',
-                                            compress=tup[1])
+        cols, _, error = csnmf.snmf.compute(data, ncols, alg, compress=comp)
         t = timeit.default_timer() - t
 
-        if isinstance(tup[2], np.ndarray):
+        if isinstance(data, np.ndarray):
             dtype = 'in-core'
-        elif isinstance(tup[2], da.Array):
+        elif isinstance(data, da.Array):
             dtype = 'out-of-core'
 
-        res_dict = {'alg': tup[0], 'comp': tup[1], 'data_type': dtype,
+        res_dict = {'alg': alg, 'comp': comp, 'data_type': dtype,
                     'cols': cols, 'error': error, 'time': t}
 
-        base_str = 'algorithm: {alg:4s}; compressed: {comp:d}; ' \
-                   'type: {data_type:11s}; error {error:.4f}; ' \
-                   'time {time:.2f}'
         print(base_str.format(**res_dict))
         res_list.append(res_dict)
 
@@ -84,7 +83,8 @@ def test_rank(m, n, only_draw=False):
     Test snmf as the matrix rank changes
     :param m: number of rows
     :param n: number of columns
-    :param only_draw: do not run test, only read data from file
+    :param only_draw: do not run test, only read data from file and
+    plot it
     """
     m = int(m)
     n = int(n)
@@ -162,8 +162,9 @@ def test_ncols(m, func, only_draw=False):
     Test snmf as the number of columns changes
     :param m: number of rows
     :param func: function determining the rank of the input matrix
-        as a function of n
-    :param only_draw: do not run test, only read data from file
+    as a function of n
+    :param only_draw: do not run test, only read data from file and
+    plot it.
     """
     m = int(m)
     n_max = int(1e3)
@@ -214,7 +215,7 @@ def test_ncols(m, func, only_draw=False):
                 linestyle = '--'
             label += dtype
 
-            ax1.plot(n_list, time_vecs[(alg, dtype)][comp], label=label,
+            ax1.semilogy(n_list, time_vecs[(alg, dtype)][comp], label=label,
                      linestyle=linestyle, linewidth=2, marker='o',
                      markeredgecolor='none', color=colors[k])
         k += 1
