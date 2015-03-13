@@ -43,12 +43,70 @@ def compute(data, ncols, alg, compress=False, n_power_iter=0):
     :param alg: Choice of algorithm for computing the columns.
     One of 'SPA' or 'XRAY'.
     :type alg: basestring
-    :param compress:
-    :param n_power_iter:
+    :param compress: Whether to use compression or not
+    :type compress: bool
+    :param n_power_iter: Number of power iterations for compression
+    :type n_power_iter: int
     :return:
     The selected columns, the right factor of the separable NMF
     decomposition, and the relative error.
     :rtype: tuple of:
+     - list of ints
+     - right factor matrix
+     - relative error of the approximation
+    """
+    if compress:
+        data_comp, _ = csnmf.compression.compress(data, ncols, n_power_iter)
+    else:
+        if isinstance(data, da.Array):
+            _, data_comp = csnmf.tsqr.qr(data)
+        elif isinstance(data, np.ndarray):
+            _, data_comp = np.linalg.qr(data)
+        else:
+            raise TypeError('Cannot compute QR decomposition of matrices '
+                            'of type ' + type(data).__name__)
+
+    if alg == 'SPA':
+        colnorms = _compute_colnorms(data_comp)
+    else:
+        colnorms = None
+
+    if isinstance(data, da.Array):
+        data_comp = np.array(data_comp)
+        colnorms = np.array(colnorms)
+    elif isinstance(data, np.ndarray):
+        pass
+    else:
+        raise TypeError('Cannot convert matrices of type ' +
+                        type(data).__name__)
+
+    cols = mrnmf.select_columns(data_comp, alg, ncols, colnorms=colnorms)
+    mat_h, error = mrnmf.nnls_frob(data_comp, cols)
+
+    return cols, mat_h, error
+
+
+def compute_multiple(data, ncols, alg, compress=False, n_power_iter=0, step=1):
+    """
+    Compute separable NMF of the input matrix with k columns, for
+    k = 1 to ncols.
+    :param data:  Input matrix
+    :type data: numpy.ndarray
+    :param ncols:  Maximum number of columns to select
+    :type ncols: int
+    :param alg: Choice of algorithm for computing the columns.
+    One of 'SPA' or 'XRAY'.
+    :type alg: basestring
+    :param compress: Whether to use compression or not
+    :type compress: bool
+    :param n_power_iter: Number of power iterations for compression
+    :type n_power_iter: int
+    :param step: Step size for k
+    :type step: int
+    :return:
+    The selected columns, the right factors of the separable NMF
+    decomposition, and the relative errors.
+    :rtype: list of tuples of:
      - list of ints
      - right factor matrix
      - relative error of the approximation
@@ -75,7 +133,10 @@ def compute(data, ncols, alg, compress=False, n_power_iter=0):
         raise TypeError('Cannot convert matrices of type ' +
                         type(data).__name__)
 
-    cols = mrnmf.select_columns(data_comp, colnorms, alg, ncols)
-    mat_h, error = mrnmf.nnls_frob(data_comp, cols)
+    results = []
+    for k in range(step, ncols, step):
+        cols = mrnmf.select_columns(data_comp, colnorms, alg, k)
+        mat_h, error = mrnmf.nnls_frob(data_comp, cols)
+        results.append((cols, mat_h, error))
 
-    return cols, mat_h, error
+    return results
