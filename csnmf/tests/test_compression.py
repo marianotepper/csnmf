@@ -171,6 +171,6 @@ def test_compression_ic_vs_ooc(only_draw=False):
     plt.savefig('test_compression_ic_vs_ooc.pdf')
 
 if __name__ == '__main__':
-    test_compression_ic_vs_ooc(only_draw=True)
-    test_compression_vs_qr(only_draw=True)
+    test_compression_ic_vs_ooc(only_draw=False)
+    test_compression_vs_qr(only_draw=False)
     plt.show()
