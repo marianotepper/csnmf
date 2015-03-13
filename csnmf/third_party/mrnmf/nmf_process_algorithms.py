@@ -4,8 +4,7 @@
    All rights reserved.
 
    This file is part of MRNMF and is under the BSD 2-Clause License,
-   which can be found in the LICENSE file in the root directory, or at
-   http://opensource.org/licenses/BSD-2-Clause
+   which can be found at http://opensource.org/licenses/BSD-2-Clause
 
    Copyright (c) 2015, Mariano Tepper,
    Duke University.
@@ -13,12 +12,14 @@
 
     Mariano Tepper made the following changes to this file:
     - modify names and line lengths to adhere more closely to PEP8
+    - changed docstrings
+    -some numpy operations are more numpy-ish now.
     - small edits, refactoring, and cleanups
     - removed some code
 """
 
 import numpy as np
-from scipy import optimize
+from scipy.optimize import nnls
 
 
 def _col2norm(x):
@@ -85,7 +86,7 @@ def nnls_frob(x, cols):
     Compute H, the coefficient matrix, by nonnegative least squares
     to minimize the Frobenius norm.  Given the data matrix X and the
     columns cols, H is
-             \arg\min_{Y \ge 0} \| X - X(:, cols) H \|_F.
+    .. math:: \arg\min_{Y \ge 0} \| X - X(:, cols) H \|_F.
     :param X: The data matrix.
     :type X: numpy.ndarray
     :param cols: The column indices.
@@ -97,14 +98,14 @@ def nnls_frob(x, cols):
     x_sel = x[:, cols]
     H = np.zeros((len(cols), ncols))
     for i in xrange(ncols):
-        sol, res = optimize.nnls(x_sel, x[:, i])
+        sol, res = nnls(x_sel, x[:, i])
         H[:, i] = sol
     rel_res = np.linalg.norm(x - np.dot(x_sel, H), 'fro')
     rel_res /= np.linalg.norm(x, 'fro')
     return H, rel_res
 
 
-def select_columns(data, colnorms, alg, r):
+def select_columns(data, alg, r, colnorms=None):
     """ Compute an approximate separable NMF of the matrix data.  By
     compute, we mean choose r columns and a best fitting coefficient
     matrix H.  The r columns are selected by the 'alg' option, which
@@ -113,20 +114,22 @@ def select_columns(data, colnorms, alg, r):
 
     :param data: The data matrix.
     :type data: numpy.ndarray
-    :param colnorms: The column norms.
     :param alg: Choice of algorithm for computing the columns.  One of
     'SPA' or 'XRAY'.
     :type alg: string
     :param r: The target separation rank.
     :type r: int
+    :param colnorms: The column norms.
+    :type colnorms: numpy.ndarray
     :return The selected columns, the matrix H, and the relative residual.
     """
 
     if alg == 'XRAY':
         cols = xray(data, r)
     elif alg == 'SPA':
+        colnorms[colnorms == 0] = 1
         cols = spa(data / colnorms, r)
     else:
-        raise Exception('Unknown algorithm: %s' % str(alg))
+        raise Exception('Unknown algorithm: {0}'.format(alg))
 
     return cols
