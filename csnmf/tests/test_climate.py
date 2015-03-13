@@ -8,6 +8,7 @@
 """
 
 from __future__ import absolute_import, print_function
+from operator import mul
 import numpy as np
 import dask.array as da
 import timeit
@@ -15,39 +16,43 @@ import itertools
 import matplotlib.pyplot as plt
 import pickle
 import scipy.io
-import h5py
 import csnmf.snmf
+import csnmf.third_party
 
 
-def run(mat, ncols, blockshape):
+def run(mat, ncols, blockshape, compute_qr_until):
 
     algorithms = ['SPA', 'XRAY']
     compress = [False, True]
-    data = [mat, da.from_array(mat, blockshape=blockshape)]
+    data_list = [mat, da.from_array(mat, blockshape=blockshape)]
+
+    base_str = 'algorithm: {alg:4s}; compressed: {comp:d}; ' \
+               'type: {data_type:11s}; error {error:.4f}; time {time:.2f}'
 
     res_list = []
-    for tup in itertools.product(algorithms, compress, data):
+    for alg, comp, data in itertools.product(algorithms, compress, data_list):
 
-        t = timeit.default_timer()
-        cols, mat_h, error = csnmf.snmf.compute(tup[2], ncols, 'SPA',
-                                            compress=tup[1])
-        t = timeit.default_timer() - t
-
-        if isinstance(tup[2], np.ndarray):
+        if isinstance(data, np.ndarray):
             dtype = 'in-core'
-        elif isinstance(tup[2], da.Array):
+        elif isinstance(data, da.Array):
             dtype = 'out-of-core'
 
-        diff = mat - np.dot(mat[:, cols], mat_h)
-        error = np.linalg.norm(diff) / np.linalg.norm(mat)
+        if not comp and ncols > compute_qr_until:
+            res_dict = {'alg': alg, 'comp': comp, 'data_type': dtype,
+                        'cols': None, 'error': np.nan, 'time': np.nan}
 
-        res_dict = {'alg': tup[0], 'comp': tup[1], 'data_type': dtype,
+            print(base_str.format(**res_dict))
+            res_list.append(res_dict)
+            continue
+
+        t = timeit.default_timer()
+        cols, mat_h, error = csnmf.snmf.compute(data, ncols, alg, compress=comp)
+        t = timeit.default_timer() - t
+
+        res_dict = {'alg': alg, 'comp': comp, 'data_type': dtype,
                     'cols': sorted(cols), 'error': error, 'time': t}
-
-        base_str = 'algorithm: {alg:4s}; compressed: {comp:d}; ' \
-                   'type: {data_type:11s}; error {error:.4f}; ' \
-                   'time {time:.2f}'
         print(base_str.format(**res_dict))
+        print(cols)
         res_list.append(res_dict)
 
     return res_list
@@ -72,32 +77,38 @@ def plot(x, dict_res, plot_func):
                 linestyle = '--'
             label += dtype
 
-            plot_func(x, dict_res[(alg, dtype)][comp], label=label,
-                      linestyle=linestyle, linewidth=2, marker='o',
-                      markeredgecolor='none', color=colors[k])
+            y = dict_res[(alg, dtype)][comp]
+            valid = np.isfinite(y).flatten()
+            if not np.any(valid):
+                continue
+            plot_func(x[valid], y[valid], label=label,
+                      linestyle=linestyle, linewidth=2,
+                      marker='o', markeredgecolor='none', color=colors[k])
         k += 1
 
     plt.hold(False)
 
 
-def test_climate(filename, plot_func, only_draw=False):
+def test_climate(filename, plot_func, q_max=11, compute_qr_until=11,
+                 only_draw=False):
 
     test_name = 'test_' + filename
-    f = scipy.io.loadmat('../data/' + filename + '.mat')
 
-    data = f['A']
-    n = data.shape[1]
-    blockshape = (int(1e3), n)
-
-    q_list = range(1, 11)
+    q_list = np.arange(1, q_max, dtype=np.int)
     shape = (len(q_list), 1)
 
     if not only_draw:
+
+        f = scipy.io.loadmat('../data/' + filename + '.mat')
+        data = f['A']
+        n = data.shape[1]
+        blockshape = (int(1e3), n)
+
         time_vecs = {}
         err_vecs = {}
 
         for i, q in enumerate(q_list):
-            res_list = run(data, q, blockshape)
+            res_list = run(data, q, blockshape, compute_qr_until)
             for res in res_list:
                 key = (res['alg'], res['data_type'])
                 if key not in time_vecs:
@@ -153,45 +164,9 @@ def test_climate(filename, plot_func, only_draw=False):
     plt.savefig(test_name + '_error.pdf')
 
 
-def create_url_dataset():
-    """
-    Data downloaded from http://sysnet.ucsd.edu/projects/url/
-    :return:
-    """
-
-    f = scipy.io.loadmat('../data/url.mat')
-    shape_data = np.zeros((2, 121))
-
-    shape = f['Day1'][0, 0][0].shape
-
-    h5f = h5py.File('../data/url.hdf5', 'w')
-    dset = h5f.create_dataset("mat", (shape[1], shape[0]))
-
-    step = 50
-    for start in range(0, shape[0], step):
-        end = min(start + step, shape[0])
-        print(start, end)
-        mat = f['Day1'][0, 0][0][start:end, :]
-        dset[:, start:end] = mat.toarray().T
-
-    # for i, name in enumerate(sorted(f.keys())):
-    #     if name[:3] != 'Day':
-    #         continue
-    #     if f[name][0, 0][0].shape[0] < 2e4:
-    #         print(name)
-    #     shape_data[:, i] = f[name][0, 0][0].shape
-
-
-def test_url(create_dataset=False, only_draw=False):
-    create_url_dataset()
-    # data = f['A']
-    # n = data.shape[1]
-    # blockshape = (int(1e3), n)
-
-
 if __name__ == '__main__':
     plt.switch_backend('TkAgg')  # otherwise, monospace fonts do not work in mac
     test_climate('air_mon', plt.plot, only_draw=False)
-    test_climate('air_day', plt.semilogy, only_draw=False)
-    # test_url(create_dataset=True, only_draw=False)
+    test_climate('air_day', plt.semilogy, q_max=11, compute_qr_until=2,
+                 only_draw=False)
     plt.show()
