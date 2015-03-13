@@ -11,9 +11,9 @@
    All rights reserved.
 
     Mariano Tepper made the following changes to this file:
-    - modify names and line lengths to adhere more closely to PEP8
+    - modified names and line lengths to adhere more closely to PEP8
     - changed docstrings
-    -some numpy operations are more numpy-ish now.
+    - some numpy operations are more numpy-ish now.
     - small edits, refactoring, and cleanups
     - removed some code
 """
