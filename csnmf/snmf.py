@@ -24,7 +24,7 @@ def _compute_colnorms(data):
         L1 norm for each column
     """
     if isinstance(data, np.ndarray):
-        colnorms = np.norm(data, ord=1, axis=0)
+        colnorms = np.linalg.norm(data, ord=1, axis=0)
     elif isinstance(data, da.Array):
         colnorms = data.vnorm(ord=1, axis=0)
     else:
