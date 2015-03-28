@@ -24,7 +24,7 @@ def _compute_colnorms(data):
         L1 norm for each column
     """
     if isinstance(data, np.ndarray):
-        colnorms = np.sum(np.fabs(data), axis=0)
+        colnorms = np.norm(data, ord=1, axis=0)
     elif isinstance(data, da.Array):
         colnorms = data.vnorm(ord=1, axis=0)
     else:
@@ -58,24 +58,20 @@ def compute(data, ncols, alg, compress=False, n_power_iter=0):
     if compress:
         data_comp, _ = csnmf.compression.compress(data, ncols, n_power_iter)
     else:
-        try:
+        if isinstance(data, da.Array):
             _, data_comp = csnmf.tsqr.qr(data)
-        except AttributeError:
-            try:
-                _, data_comp = np.linalg.qr(data)
-            except np.linalg.linalg.LinAlgError:
-                raise
+        elif isinstance(data, np.ndarray):
+            _, data_comp = np.linalg.qr(data)
+        else:
+            raise TypeError('Cannot compute QR decomposition of matrices '
+                            'of type ' + type(data).__name__)
+    data_comp = np.array(data_comp)
 
     if alg == 'SPA':
         colnorms = _compute_colnorms(data_comp)
+        colnorms = np.array(colnorms)
     else:
         colnorms = None
-
-    try:
-        data_comp = np.array(data_comp)
-        colnorms = np.array(colnorms)
-    except TypeError:
-        raise
 
     cols = mrnmf.select_columns(data_comp, alg, ncols, colnorms=colnorms)
     mat_h, error = mrnmf.nnls_frob(data_comp, cols)
