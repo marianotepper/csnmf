@@ -58,27 +58,24 @@ def compute(data, ncols, alg, compress=False, n_power_iter=0):
     if compress:
         data_comp, _ = csnmf.compression.compress(data, ncols, n_power_iter)
     else:
-        if isinstance(data, da.Array):
+        try:
             _, data_comp = csnmf.tsqr.qr(data)
-        elif isinstance(data, np.ndarray):
-            _, data_comp = np.linalg.qr(data)
-        else:
-            raise TypeError('Cannot compute QR decomposition of matrices '
-                            'of type ' + type(data).__name__)
+        except AttributeError:
+            try:
+                _, data_comp = np.linalg.qr(data)
+            except np.linalg.linalg.LinAlgError:
+                raise
 
     if alg == 'SPA':
         colnorms = _compute_colnorms(data_comp)
     else:
         colnorms = None
 
-    if isinstance(data, da.Array):
+    try:
         data_comp = np.array(data_comp)
         colnorms = np.array(colnorms)
-    elif isinstance(data, np.ndarray):
-        pass
-    else:
-        raise TypeError('Cannot convert matrices of type ' +
-                        type(data).__name__)
+    except TypeError:
+        raise
 
     cols = mrnmf.select_columns(data_comp, alg, ncols, colnorms=colnorms)
     mat_h, error = mrnmf.nnls_frob(data_comp, cols)
@@ -124,14 +121,11 @@ def compute_multiple(data, ncols, alg, compress=False, n_power_iter=0, step=1):
 
     colnorms = _compute_colnorms(data_comp)
 
-    if isinstance(data, da.Array):
+    try:
         data_comp = np.array(data_comp)
         colnorms = np.array(colnorms)
-    elif isinstance(data, np.ndarray):
-        pass
-    else:
-        raise TypeError('Cannot convert matrices of type ' +
-                        type(data).__name__)
+    except:
+        raise
 
     results = []
     for k in range(step, ncols, step):
