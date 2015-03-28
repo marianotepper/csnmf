@@ -8,7 +8,6 @@
 """
 
 from __future__ import absolute_import, print_function
-from operator import mul
 import numpy as np
 import dask.array as da
 import timeit
