@@ -22,26 +22,25 @@ import numpy as np
 from scipy.optimize import nnls
 
 
-def _col2norm(x):
-    """ Compute all column 2-norms of a matrix. """
-    return np.sum(x**2, axis=0)
-
-
-def spa(x, r):
+def spa(data, r, colnorms):
     """
     Successive projection algorithm (SPA) for NMF.  This algorithm
     computes the column indices.
-    :param x: The data matrix.
-    :type x: numpy.ndarray
+    :param data: The data matrix.
+    :type data: numpy.ndarray
     :param r: The target separation rank.
     :type r: int
+    :param colnorms: The column L1 norms.
+    :type colnorms: numpy.ndarray
     :return: A list of r columns chosen by SPA.
     :rtype: list of int
     """
+    idx = np.nonzero(colnorms)
+    x = data[:, idx] / colnorms[idx]
     cols = []
     m, n = x.shape
     for _ in xrange(r):
-        col_norms = _col2norm(x)
+        col_norms = np.linalg.norm(x, ord='fro', axis=0)
         col_ind = np.argmax(col_norms)
         cols.append(col_ind)
         col = np.atleast_2d(x[:, col_ind]) #col is a row vector
@@ -67,7 +66,8 @@ def xray(x, r):
         # Loop until we choose a column that has not been selected.
         while True:
             p = np.random.random((1, x.shape[0]))
-            scores = _col2norm(np.dot(R.T, x)) / np.dot(p, x)
+            scores = np.linalg.norm(np.dot(R.T, x), ord='fro', axis=0)
+            scores /= np.dot(p, x)
             scores[cols] = -1   # IMPORTANT
             best_col = np.argmax(scores)
             if best_col in cols:
@@ -119,7 +119,7 @@ def select_columns(data, alg, r, colnorms=None):
     :type alg: string
     :param r: The target separation rank.
     :type r: int
-    :param colnorms: The column norms.
+    :param colnorms: The column L1 norms, needed only by SPA.
     :type colnorms: numpy.ndarray
     :return The selected columns, the matrix H, and the relative residual.
     """
@@ -127,8 +127,7 @@ def select_columns(data, alg, r, colnorms=None):
     if alg == 'XRAY':
         cols = xray(data, r)
     elif alg == 'SPA':
-        colnorms[colnorms == 0] = 1
-        cols = spa(data / colnorms, r)
+        cols = spa(data, r, colnorms)
     else:
         raise Exception('Unknown algorithm: {0}'.format(alg))
 
