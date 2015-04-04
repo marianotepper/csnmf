@@ -63,11 +63,11 @@ def xray(x, r):
     """
     cols = []
     R = np.copy(x)
-    colnorm_X = _col2norm(x)
     while len(cols) < r:
         # Loop until we choose a column that has not been selected.
         while True:
-            scores = _col2norm(np.dot(R.T, x)) / colnorm_X
+            p = np.random.random((1, x.shape[0]))
+            scores = _col2norm(np.dot(R.T, x)) / np.dot(p, x)
             scores[cols] = -1   # IMPORTANT
             best_col = np.argmax(scores)
             if best_col in cols:
@@ -76,7 +76,7 @@ def xray(x, r):
             else:
                 cols.append(best_col)
                 H, rel_res = nnls_frob(x, cols)
-                R = x - np.dot(x[:, cols] , H)
+                R = x - np.dot(x[:, cols], H)
                 break
     return cols
 
