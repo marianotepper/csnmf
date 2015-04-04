@@ -36,7 +36,8 @@ def spa(data, r, colnorms):
     :rtype: list of int
     """
     idx = np.nonzero(colnorms)
-    x = data[:, idx] / colnorms[idx]
+    x = np.copy(data)
+    x[:, idx] /= colnorms[idx]
     cols = []
     m, n = x.shape
     for _ in xrange(r):
