@@ -37,7 +37,7 @@ def compress(data, q, n_power_iter=0):
         qr = np.linalg.qr
     elif isinstance(data, da.Array):
         omega = da.random.standard_normal(size=(n, comp_level),
-                                          blockdims=(data.blockdims[1],
+                                          chunks=(data.chunks[1],
                                                      (comp_level,)))
         qr = csnmf.tsqr.qr
     else:
